@@ -1,0 +1,60 @@
+// ─────────────────────────────────────────────────────
+// REGLAS DE SEGURIDAD FIRESTORE
+// Pegar en: Firebase Console → Firestore → Reglas
+// ─────────────────────────────────────────────────────
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Negar todo por defecto ──────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── Alumnos ─────────────────────────────────────
+    // Lectura: todos los autenticados
+    // Escritura: solo admin
+    match /alumnos/{id} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.auth.token.admin == true
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0
+        && request.resource.data.nombre.size() < 100
+        && request.resource.data.carnet in ['A','B','C','A+B'];
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ── Profesores ──────────────────────────────────
+    match /profesores/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.admin == true
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0;
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ── Prácticas por fecha ──────────────────────────
+    match /practicas_{fecha}/{id} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.auth.token.admin == true
+        && request.resource.data.hora is string
+        && request.resource.data.duracion in [30, 45]
+        && request.resource.data.vehiculo in ['coche','moto','camion'];
+      allow update: if request.auth != null
+        // Admin puede todo; profesor solo puede firmar sus prácticas
+        && (request.auth.token.admin == true
+          || (resource.data.profesorId == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['firmada','firmaBase64','firmaTimestamp'])));
+      allow delete: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ── Fechas usadas ────────────────────────────────
+    match /fechas_usadas/{id} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.admin == true;
+    }
+  }
+}
