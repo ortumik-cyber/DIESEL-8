@@ -1761,10 +1761,9 @@ async function subirOneDrive(buffer, filename){
   if(!token){ toast('Sin token OneDrive — reconecta'); return false; }
   if(!buffer || !buffer.byteLength){ toast('Excel vacío'); return false; }
   var GRAPH  = 'https://graph.microsoft.com/v1.0';
-  var FOLDER = getCarpeta().replace(/\\/g,'/').replace(/\/+$/,'');
+  var FOLDER = getCarpeta().replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-_\/]/g,'');
   var YEAR   = new Date().getFullYear();
-  // Graph crea las carpetas intermedias automáticamente con este endpoint
-  var path   = FOLDER+'/'+YEAR+'/'+filename;
+  var path   = encodeURIComponent(FOLDER)+'/'+YEAR+'/'+encodeURIComponent(filename);
   try{
     var resp = await fetch(
       GRAPH+'/me/drive/root:/'+path+':/content?@microsoft.graph.conflictBehavior=replace',
