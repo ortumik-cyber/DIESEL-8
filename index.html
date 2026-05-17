@@ -12,8 +12,6 @@
 <title>Autoescuela Diesel</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://alcdn.msauth.net/browser/2.32.0/js/msal-browser.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;color:#0f172a;background:#e8eef7}
@@ -1546,6 +1544,28 @@ var OD_ACCOUNT  = 'diesel_od_account';
 var msalApp     = null;
 var odToken     = null;
 
+// Carga scripts externos solo cuando se necesitan
+function cargarScript(url, comprobacion){
+  return new Promise(function(resolve, reject){
+    if(comprobacion && comprobacion()){ resolve(); return; }
+    var s = document.createElement('script');
+    s.src = url;
+    s.onload = resolve;
+    s.onerror = function(){ reject(new Error('Error cargando '+url)); };
+    document.head.appendChild(s);
+  });
+}
+async function cargarLibrerias(){
+  await cargarScript(
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    function(){ return !!window.XLSX; }
+  );
+  await cargarScript(
+    'https://alcdn.msauth.net/browser/2.32.0/js/msal-browser.min.js',
+    function(){ return !!(window.msal && window.msal.PublicClientApplication); }
+  );
+}
+
 // ── Estado UI ─────────────────────────────────────────────────
 function updateODStatus(conectado, nombre){
   var btn = document.getElementById('btn-od-connect');
@@ -1593,6 +1613,8 @@ function initMSAL(){
 
 // ── Conectar OneDrive ─────────────────────────────────────────
 async function conectarOneDrive(){
+  try{ await cargarLibrerias(); }
+  catch(e){ toast('Sin conexión a internet para cargar MSAL'); return; }
   var clientId = document.getElementById('azure-client-id').value.trim()
                || localStorage.getItem(AZURE_KEY);
   if(!clientId){ toast('Introduce el Client ID de Azure'); return; }
@@ -1901,6 +1923,8 @@ async function generarExcelCompleto(){
 
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
+  try{ await cargarLibrerias(); }
+  catch(e){ if(!silencioso) toast('Sin conexión — no se pueden cargar las librerías'); return; }
   var token = await getODToken();
   if(!token){
     if(!silencioso) toast('Conecta OneDrive primero en Config → ☁️ OneDrive');
