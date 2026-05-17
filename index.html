@@ -1,1 +1,1979 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Diesel">
+<meta name="theme-color" content="#0f2d6b">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Autoescuela Diesel</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.32.0/js/msal-browser.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;color:#0f172a;background:#e8eef7}
+.hidden{display:none!important}
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:#0f2d6b;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;padding:24px;overflow-y:auto}
+.login-logo{text-align:center;margin-bottom:24px}
+.login-logo img{width:84px;height:84px;border-radius:8px;object-fit:cover;background:#fff;border:3px solid rgba(255,255,255,.2)}
+.login-logo h1{color:#fff;font-size:21px;margin-top:12px;font-weight:700;letter-spacing:.5px}
+.login-logo p{color:rgba(255,255,255,.55);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;margin-top:4px}
+.login-box{background:#fff;border-radius:6px;padding:26px;width:100%;max-width:380px}
+.login-box h2{font-size:15px;font-weight:700;margin-bottom:4px;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px}
+.login-box .sub{font-size:12px;color:#64748b;margin-bottom:18px}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.role-btn{padding:14px 8px;border:2px solid #cbd5e1;background:#fff;border-radius:4px;cursor:pointer;text-align:center;font-family:inherit}
+.role-btn .ico{font-size:22px;display:block;margin-bottom:5px}
+.role-btn .lbl{font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.5px}
+.role-btn.sel{border-color:#1a56db;background:#eff6ff}
+.role-btn.sel .lbl{color:#1a56db}
+#pass-wrap{margin-bottom:14px}
+#pass-wrap label{font-size:11px;font-weight:700;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.7px;color:#374151}
+#login-pass{width:100%;padding:12px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:22px;letter-spacing:8px;text-align:center;font-family:inherit;color:#0f2d6b}
+#login-pass:focus{outline:none;border-color:#1a56db}
+#login-error{color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;display:none;font-weight:600}
+#login-btn{width:100%;padding:13px;background:#1a56db;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.8px}
+#login-btn:active{background:#0f2d6b}
+
+/* HEADER */
+.header{background:#0f2d6b;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:3px solid #1a56db}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-left img{height:34px;width:auto;border-radius:4px;background:#fff;padding:2px;object-fit:cover}
+.hdr-left h1{font-size:14px;font-weight:700;letter-spacing:.3px}
+.hdr-left p{font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1.5px;margin-top:2px}
+.hdr-right{display:flex;align-items:center;gap:10px}
+#sync-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);flex-shrink:0}
+#sync-dot.online{background:#22c55e}
+#sync-dot.syncing{background:#fbbf24;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+#btn-salir{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);font-size:10px;padding:5px 11px;border-radius:3px;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.5px}
+
+/* TABS */
+.tabs{background:#fff;border-bottom:2px solid #1a56db;display:flex;flex-shrink:0}
+.tab{flex:1;padding:9px 2px 7px;border:none;background:transparent;font-size:9px;font-weight:700;color:#64748b;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;border-bottom:3px solid transparent;margin-bottom:-2px;font-family:inherit;text-transform:uppercase;letter-spacing:.4px}
+.tab.active{color:#1a56db;border-bottom-color:#1a56db;background:#f8faff}
+.tab-ico{font-size:17px}
+
+/* CONTENT */
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px}
+
+/* DESKTOP — calendario pantalla completa */
+@media(min-width:768px){
+  .content{padding:14px 0 0 0;display:flex;flex-direction:column}
+  #tab-admin{flex:1;display:flex;flex-direction:column;padding:0 14px 0 14px}
+  #tab-profesor,#tab-alumnos,#tab-config{padding:0 14px}
+  #tab-admin>.card-cal{flex:1;display:flex;flex-direction:column;overflow:hidden;border-radius:0;border-left:none;border-right:none;margin-bottom:0}
+  #cal-body{flex:1;overflow-y:auto}
+  .cal-row{min-height:52px}
+  .cal-hora{width:68px;font-size:12px}
+  .chip{font-size:12px;padding:5px 11px}
+  .tab{font-size:10px;padding:11px 4px 9px}
+  .tab-ico{font-size:18px}
+  .date-nav{margin-bottom:8px}
+}
+
+/* CARDS */
+.card{background:#fff;border-radius:4px;border:1px solid #cbd5e1;overflow:hidden;margin-bottom:12px}
+.card-cal{background:#fff;border-radius:4px;border:1px solid #cbd5e1;overflow:hidden;margin-bottom:12px}
+
+/* DATE NAV */
+.date-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px;background:#fff;padding:8px 12px;border:1px solid #cbd5e1;border-radius:4px}
+.dnav-btn{width:34px;height:34px;border:1px solid #cbd5e1;background:#f8faff;border-radius:3px;cursor:pointer;font-size:18px;color:#1a56db;flex-shrink:0;font-weight:bold}
+.dnav-btn:active{background:#dbeafe}
+.dnav-label{flex:1;text-align:center;font-weight:700;font-size:14px;color:#0f2d6b}
+.btn-sm{padding:6px 10px;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;text-transform:uppercase;letter-spacing:.4px}
+.btn-navy{background:#0f2d6b;color:#fff}
+.btn-blue{background:#1a56db;color:#fff}
+.btn-outline{background:#fff;color:#374151;border:1px solid #cbd5e1}
+
+/* LEYENDA + CALENDARIO */
+.cal-legend{display:flex;flex-wrap:wrap;gap:5px;padding:8px 10px;border-bottom:1px solid #e2e8f0;background:#f8faff}
+.cal-row{display:flex;align-items:stretch;border-bottom:1px solid #e2e8f0;min-height:46px}
+.cal-row:nth-child(even){background:#fafbfd}
+.cal-row:last-child{border-bottom:none}
+.cal-hora{width:50px;flex-shrink:0;font-size:11px;font-weight:700;color:#1a56db;display:flex;align-items:center;padding:0 4px 0 8px;border-right:2px solid #dbeafe;background:rgba(219,234,254,.25)}
+.cal-slot{flex:1;padding:4px 6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:3px;padding:4px 9px;border-radius:3px;font-size:11px;font-weight:700;border:1px solid transparent;cursor:default}
+.chip-x{opacity:.5;cursor:pointer;padding:1px 4px;font-size:10px;margin-left:2px;border-radius:2px}
+.chip-x:hover{opacity:1;background:rgba(0,0,0,.1)}
+.btn-add{width:28px;height:28px;border-radius:3px;border:1.5px dashed #93c5fd;background:transparent;cursor:pointer;font-size:18px;color:#3b82f6;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+
+/* PRÁCTICAS CARD */
+.pcard{background:#fff;border-radius:4px;border:1px solid #cbd5e1;border-left:4px solid #1a56db;padding:10px 13px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.pcard.firmada{border-left-color:#16a34a}
+.pcard-hora{font-size:18px;font-weight:700;color:#0f2d6b;min-width:46px;font-variant-numeric:tabular-nums}
+.pcard-info{flex:1;min-width:0}
+.pcard-nom{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard-sub{font-size:11px;color:#64748b;margin-top:2px;display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.vbadge{padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.vbadge.coche{background:#dbeafe;color:#1e40af}
+.vbadge.moto{background:#fef3c7;color:#92400e}
+.vbadge.camion{background:#dcfce7;color:#166534}
+.btn-firmar{padding:7px 12px;background:#1a56db;color:#fff;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;font-family:inherit;text-transform:uppercase}
+.firma-ok-ico{width:26px;height:26px;background:#dcfce7;border:1px solid #86efac;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+
+/* ALUMNOS */
+.arow{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid #e2e8f0}
+.arow:nth-child(even){background:#fafbfd}
+.arow:last-child{border-bottom:none}
+.avatar{width:36px;height:36px;border-radius:3px;background:#1a56db;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;cursor:pointer}
+.arow-info{flex:1;min-width:0;cursor:pointer}
+.arow-nom{font-weight:600;font-size:13px}
+.arow-sub{font-size:11px;color:#64748b;margin-top:1px}
+.carnet-tag{padding:1px 6px;background:#1a56db;color:#fff;border-radius:2px;font-size:10px;font-weight:700;text-transform:uppercase}
+.icon-btn{width:32px;height:32px;border:none;border-radius:3px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.edit-btn{background:#dbeafe;color:#1e40af}
+.del-btn{background:#fee2e2;color:#dc2626}
+.search-inp{width:100%;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:14px;font-family:inherit;margin-bottom:10px;color:#0f172a}
+.search-inp:focus{outline:none;border-color:#1a56db}
+.sort-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.sort-btn{padding:5px 13px;border-radius:3px;border:1.5px solid #cbd5e1;background:#fff;font-size:11px;font-weight:700;color:#64748b;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.3px}
+.sort-btn.active{background:#1a56db;color:#fff;border-color:#1a56db}
+
+/* PROF SELECTOR */
+.prof-sel-wrap{background:#fff;border-radius:4px;border:1px solid #cbd5e1;padding:9px 13px;margin-bottom:10px}
+.prof-sel-wrap label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px}
+#prof-select{width:100%;padding:8px 10px;border:1.5px solid #1a56db;border-radius:3px;font-size:14px;font-weight:700;color:#0f2d6b;background:#eff6ff;font-family:inherit}
+
+/* PROF MGMT BAR */
+.prof-mgmt{background:#0f2d6b;border-radius:4px;padding:8px 13px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.prof-mgmt span{font-size:10px;font-weight:700;color:rgba(255,255,255,.65);text-transform:uppercase;letter-spacing:.8px}
+
+/* SHEETS */
+.sheet-overlay{position:fixed;inset:0;background:rgba(15,45,107,.55);z-index:50;display:flex;flex-direction:column;justify-content:flex-end}
+.sheet{background:#fff;border-radius:8px 8px 0 0;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet-handle{width:32px;height:3px;background:#cbd5e1;border-radius:2px;margin:10px auto 2px}
+.sheet-head{padding:8px 18px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1a56db;position:sticky;top:0;background:#fff;z-index:1}
+.sheet-head h2{font-size:14px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px}
+.sheet-head p{font-size:11px;color:#64748b;margin-top:2px}
+.btn-close{width:28px;height:28px;border:1px solid #cbd5e1;background:#f8faff;border-radius:3px;cursor:pointer;font-size:14px;color:#64748b;display:flex;align-items:center;justify-content:center}
+.sheet-body{padding:14px 18px}
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:11px;font-weight:700;margin-bottom:5px;color:#374151;text-transform:uppercase;letter-spacing:.5px}
+.fg input,.fg select,.fg textarea{width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:14px;font-family:inherit;background:#fff;color:#0f172a}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:#1a56db;background:#eff6ff}
+.fg textarea{min-height:120px;resize:vertical;line-height:1.6}
+.char-c{font-size:11px;color:#94a3b8;text-align:right;margin-top:3px}
+.sheet-btns{display:flex;gap:10px;padding:4px 18px 16px}
+.btn-prim{flex:1;padding:12px;background:#1a56db;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.5px}
+.btn-prim:active{background:#0f2d6b}
+.btn-sec{flex:1;padding:12px;border:1.5px solid #cbd5e1;background:#fff;border-radius:4px;font-size:13px;cursor:pointer;color:#374151;font-family:inherit;font-weight:600}
+
+/* DURATION RADIO */
+.dur-opts{display:flex;gap:10px;margin-top:4px}
+.dur-opt{flex:1;padding:10px;border:2px solid #cbd5e1;border-radius:4px;cursor:pointer;text-align:center;font-size:13px;font-weight:700;color:#374151}
+.dur-opt.sel{border-color:#1a56db;background:#eff6ff;color:#1a56db}
+
+/* FICHA */
+.ficha-sec{margin-bottom:14px}
+.ficha-sec-title{font-size:10px;font-weight:700;color:#1a56db;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #dbeafe}
+.ficha-row{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9}
+.ficha-row:last-child{border-bottom:none}
+.ficha-lbl{font-size:11px;color:#94a3b8;min-width:72px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;padding-top:1px}
+.ficha-val{font-size:13px;font-weight:500;flex:1;word-break:break-word}
+.ficha-notas{background:#f8faff;border:1px solid #dbeafe;border-radius:4px;padding:10px;font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap;min-height:48px}
+.ficha-notas.vacio{color:#94a3b8;font-style:italic}
+
+/* HISTORIAL */
+.hist-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat-box{background:#0f2d6b;border-radius:4px;padding:10px;text-align:center}
+.stat-num{font-size:22px;font-weight:700;color:#fff}
+.stat-lbl{font-size:9px;color:rgba(255,255,255,.55);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+.hist-row{display:flex;align-items:center;gap:6px;padding:9px 0;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+.hist-row:nth-child(even){background:#f8faff;margin:0 -18px;padding:9px 18px}
+.hist-row:last-child{border-bottom:none}
+.firma-tag{padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.firma-tag.ok{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.firma-tag.no{background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0}
+.prof-tag{padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700;background:#0f2d6b;color:#fff;flex-shrink:0;text-transform:uppercase}
+.firma-thumb{height:32px;border:1px solid #bfdbfe;border-radius:3px;background:#eff6ff;cursor:pointer;display:block;max-width:80px;object-fit:contain}
+
+/* FIRMA CANVAS */
+.canvas-wrap{border:2px solid #1a56db;border-radius:4px;overflow:hidden;background:#fafafa;margin-bottom:8px}
+#firma-canvas{display:block;width:100%;height:160px;touch-action:none;cursor:crosshair}
+.firma-hint{text-align:center;font-size:12px;color:#64748b;padding:6px;font-style:italic}
+
+/* CONFIG */
+.cfg-sec{margin-bottom:18px}
+.cfg-sec h3{font-size:11px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:6px 0;border-bottom:2px solid #1a56db}
+
+/* WA */
+.wa-opt{border:2px solid #cbd5e1;border-radius:4px;padding:10px 12px;margin-bottom:9px;cursor:pointer}
+.wa-opt.sel{border-color:#1a56db;background:#eff6ff}
+.wa-opt-title{font-size:11px;font-weight:700;margin-bottom:3px;color:#0f2d6b;text-transform:uppercase;letter-spacing:.3px}
+.wa-opt-prev{font-size:12px;color:#64748b;line-height:1.5}
+.btn-wa{width:100%;padding:13px;background:#16a34a;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;margin-top:10px;font-family:inherit;text-transform:uppercase;letter-spacing:.5px}
+.divider{border:none;border-top:1px solid #e2e8f0;margin:14px 0}
+
+/* CONFIRM */
+.confirm-overlay{position:fixed;inset:0;background:rgba(15,45,107,.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.confirm-box{background:#fff;border-radius:6px;padding:24px;width:100%;max-width:320px;text-align:center;border-top:4px solid #1a56db}
+.confirm-ico{font-size:34px;margin-bottom:10px}
+.confirm-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.confirm-msg{font-size:13px;color:#64748b;margin-bottom:18px;line-height:1.5;white-space:pre-line}
+.confirm-acts{display:flex;gap:10px}
+.btn-conf-ok{flex:1;padding:11px;background:#dc2626;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;text-transform:uppercase}
+.btn-conf-no{flex:1;padding:11px;border:1.5px solid #cbd5e1;background:#fff;border-radius:4px;cursor:pointer;font-size:13px;font-family:inherit}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0f2d6b;color:#fff;padding:10px 20px;border-radius:4px;font-size:13px;font-weight:600;z-index:500;white-space:nowrap;animation:toastIn .2s ease;max-width:90vw;text-align:center;border-left:3px solid #3b82f6}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.empty{text-align:center;padding:40px 20px}
+.empty .eico{font-size:36px;margin-bottom:10px;opacity:.35}
+.empty p{font-size:13px;color:#94a3b8;font-weight:500}
+.loading{display:flex;align-items:center;justify-content:center;padding:36px;color:#64748b;font-size:13px;gap:8px}
+.spinner{width:18px;height:18px;border:2px solid #dbeafe;border-top-color:#1a56db;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-logo">
+    <img id="logo-login" src="icon.png" onerror="this.style.display='none'" alt="">
+    <h1 id="app-nombre-login">Autoescuela Diesel</h1>
+    <p>Sistema de gestión</p>
+  </div>
+  <div class="login-box">
+    <h2>Acceder al sistema</h2>
+    <p class="sub">Selecciona tu perfil para continuar</p>
+    <div class="roles">
+      <button class="role-btn sel" id="role-admin"><span class="ico">🗂️</span><span class="lbl">Administrativo</span></button>
+      <button class="role-btn" id="role-prof"><span class="ico">👨‍🏫</span><span class="lbl">Profesor</span></button>
+    </div>
+    <div id="pass-wrap">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••" maxlength="30">
+    </div>
+    <div id="login-error">Contraseña incorrecta</div>
+    <button id="login-btn">Entrar</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app hidden" id="main-app">
+  <div class="header">
+    <div class="hdr-left">
+      <img id="logo-header" src="icon.png" onerror="this.style.display='none'" alt="">
+      <div><h1 id="app-nombre-header">Autoescuela Diesel</h1><p id="rol-label">Sistema</p></div>
+    </div>
+    <div class="hdr-right">
+      <div id="sync-dot"></div>
+      <button id="btn-salir">Cerrar sesión</button>
+      <button id="btn-od-connect" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);font-size:10px;padding:5px 11px;border-radius:3px;cursor:pointer;font-family:inherit;display:none">📤 OneDrive</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="admin"><span class="tab-ico">📅</span>Calendario</button>
+    <button class="tab" data-tab="profesor"><span class="tab-ico">👨‍🏫</span>Profesor</button>
+    <button class="tab" data-tab="alumnos"><span class="tab-ico">👥</span>Alumnos</button>
+    <button class="tab" data-tab="config"><span class="tab-ico">⚙️</span>Config</button>
+  </div>
+  <div class="content">
+
+    <!-- CALENDARIO -->
+    <div id="tab-admin">
+      <div class="date-nav">
+        <button class="dnav-btn" id="btn-dia-prev">‹</button>
+        <span class="dnav-label" id="fecha-label"></span>
+        <button class="dnav-btn" id="btn-dia-next">›</button>
+        <button class="btn-sm btn-navy" id="btn-hoy">Hoy</button>
+        <button class="btn-sm btn-outline" id="btn-gcal-dia">📅 GCal</button>
+      </div>
+      <div class="card-cal" id="card-cal">
+        <div id="cal-legend" class="cal-legend"></div>
+        <div id="cal-body"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- PROFESOR -->
+    <div id="tab-profesor" class="hidden">
+      <div class="prof-mgmt hidden" id="prof-mgmt">
+        <span>Gestión de profesores</span>
+        <button class="btn-sm btn-blue" id="btn-nuevo-prof">+ Añadir</button>
+      </div>
+      <div class="prof-sel-wrap">
+        <label>Profesor activo</label>
+        <select id="prof-select"><option value="">— Selecciona un profesor —</option></select>
+      </div>
+      <div class="date-nav">
+        <button class="dnav-btn" id="btn-prof-prev">‹</button>
+        <span class="dnav-label" id="fecha-prof-label"></span>
+        <button class="dnav-btn" id="btn-prof-next">›</button>
+      </div>
+      <div id="prac-list"><div class="empty"><div class="eico">👨‍🏫</div><p>Selecciona un profesor</p></div></div>
+      <div id="prof-list-wrap" class="hidden" style="margin-top:14px">
+        <div class="cfg-sec"><h3>Profesores registrados</h3></div>
+        <div class="card" id="prof-body"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- ALUMNOS -->
+    <div id="tab-alumnos" class="hidden">
+      <input class="search-inp" type="search" id="search-al" placeholder="Buscar por nombre o teléfono...">
+      <div class="sort-bar">
+        <button class="sort-btn active" data-sort="alpha">A–Z</button>
+        <button class="sort-btn" data-sort="ant">Antigüedad</button>
+        <button class="sort-btn hidden" id="btn-nuevo-al" style="margin-left:auto;background:#1a56db;color:#fff;border-color:#1a56db">+ Nuevo</button>
+      </div>
+      <div class="card" id="al-body"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="tab-config" class="hidden">
+      <div id="cfg-admin" class="hidden">
+        <div class="cfg-sec">
+          <h3>🏫 Datos de la autoescuela</h3>
+          <div class="card" style="padding:14px">
+            <div class="fg">
+              <label>Nombre de la autoescuela</label>
+              <input type="text" id="cfg-nombre" placeholder="Autoescuela Diesel" maxlength="60">
+              <p style="font-size:11px;color:#94a3b8;margin-top:4px">Aparece en header, login, WhatsApp, Excel y Google Calendar</p>
+            </div>
+            <div class="fg">
+              <label>Carpeta en OneDrive</label>
+              <input type="text" id="cfg-carpeta" placeholder="Autoescuela Diesel/Backups" maxlength="120">
+              <p style="font-size:11px;color:#94a3b8;margin-top:4px">Ruta donde se guardan los Excel diarios. Ej: <em>MiAutoescuela/Informes</em></p>
+            </div>
+            <button class="btn-prim" style="width:100%" id="btn-guardar-nombre">Guardar configuración</button>
+          </div>
+        </div>
+        <div class="cfg-sec">
+          <h3>☁️ OneDrive — Azure</h3>
+          <div class="card" style="padding:14px">
+            <p style="font-size:12px;color:#64748b;margin-bottom:10px">Introduce el Client ID de tu app registrada en Azure AD para conectar OneDrive</p>
+            <div class="fg"><label>Azure App Client ID</label><input type="text" id="azure-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-prim" style="flex:1" id="btn-azure-guardar">Guardar y conectar</button>
+              <button class="btn-sec" style="flex:none;padding:10px 14px" id="btn-od-desconectar">Desconectar</button>
+            </div>
+            <p id="od-status" style="font-size:11px;color:#64748b;margin-top:8px;text-align:center"></p>
+          </div>
+        </div>
+        <div class="cfg-sec">
+          <h3>📊 Exportar Excel</h3>
+          <div class="card" style="padding:14px">
+            <p style="font-size:12px;color:#64748b;margin-bottom:12px">Genera el informe completo y lo sube a <strong id='od-folder-display'>OneDrive/...</strong></p>
+            <button class="btn-prim" style="width:100%;margin-bottom:8px" id="btn-exportar-od">📤 Exportar a OneDrive ahora</button>
+            <p id="od-last-export" style="font-size:11px;color:#94a3b8;text-align:center"></p>
+          </div>
+        </div>
+          <div class="card" style="padding:14px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <img id="logo-preview" src="icon.png" style="width:50px;height:50px;border-radius:4px;object-fit:cover;border:1px solid #cbd5e1">
+              <p style="font-size:12px;color:#64748b;flex:1">URL de imagen para el logo de la app</p>
+            </div>
+            <div class="fg"><label>URL del logo</label><input type="url" id="logo-url-input" placeholder="https://ejemplo.com/logo.png"></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-prim" style="flex:1" id="btn-logo-aplicar">Aplicar</button>
+              <button class="btn-sec" style="flex:none;padding:10px 14px" id="btn-logo-reset">Reset</button>
+            </div>
+          </div>
+        </div>
+        <div class="cfg-sec">
+          <h3>🔑 Contraseña</h3>
+          <div class="card" style="padding:14px">
+            <div class="fg"><label>Nueva contraseña</label><input type="password" id="new-pass" placeholder="Mínimo 3 caracteres"></div>
+            <button class="btn-prim" style="width:100%" id="btn-pass-cambiar">Guardar contraseña</button>
+          </div>
+        </div>
+        <div class="cfg-sec">
+          <h3>📱 WhatsApp API</h3>
+          <div class="card" style="padding:14px">
+            <div class="fg"><label>API Key (360dialog)</label><input type="text" id="wa-key" placeholder="Tu API Key"></div>
+            <div class="fg"><label>Número WhatsApp Business</label><input type="text" id="wa-phone" placeholder="+34600000000"></div>
+            <button class="btn-prim" style="width:100%" id="btn-wa-guardar">Guardar</button>
+          </div>
+        </div>
+      </div>
+      <div class="cfg-sec">
+        <h3>ℹ️ Sesión</h3>
+        <div class="card" style="padding:14px">
+          <p style="font-size:13px">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
+          <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVA PRÁCTICA -->
+<div class="sheet-overlay hidden" id="sh-practica">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Nueva práctica</h2><button class="btn-close" data-close="sh-practica">✕</button></div>
+    <div class="sheet-body">
+      <div class="fg"><label>Hora de inicio</label><select id="m-hora"></select></div>
+      <div class="fg">
+        <label>Duración</label>
+        <div class="dur-opts">
+          <div class="dur-opt sel" data-dur="45">45 min <span style="font-size:10px;opacity:.7">(defecto)</span></div>
+          <div class="dur-opt" data-dur="30">30 min</div>
+        </div>
+        <input type="hidden" id="m-duracion" value="45">
+      </div>
+      <div class="fg"><label>Alumno</label><select id="m-alumno"></select></div>
+      <div class="fg"><label>Profesor</label><select id="m-prof"></select></div>
+      <div class="fg"><label>Vehículo</label>
+        <select id="m-vehiculo">
+          <option value="coche">🚗 Coche</option>
+          <option value="moto">🏍️ Moto</option>
+          <option value="camion">🚛 Camión</option>
+        </select>
+      </div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-sec" data-close="sh-practica">Cancelar</button>
+      <button class="btn-prim" id="btn-guardar-prac">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: WHATSAPP + GCAL -->
+<div class="sheet-overlay hidden" id="sh-wa">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Comunicación</h2><button class="btn-close" data-close="sh-wa">✕</button></div>
+    <div class="sheet-body">
+      <p id="wa-info" style="font-size:13px;font-weight:700;color:#0f2d6b;margin-bottom:12px"></p>
+      <div id="wa-tipo1" class="wa-opt sel"><div class="wa-opt-title">📅 Nueva cita</div><div class="wa-opt-prev" id="wa-prev1"></div></div>
+      <div id="wa-tipo2" class="wa-opt"><div class="wa-opt-title">🔄 Hora modificada</div><div class="wa-opt-prev" id="wa-prev2"></div></div>
+      <button class="btn-wa" id="btn-enviar-wa">📱 Enviar por WhatsApp</button>
+      <hr class="divider">
+      <div class="fg">
+        <label>📅 Añadir a Google Calendar</label>
+        <input type="email" id="gcal-email" placeholder="Email del alumno (opcional — para enviarle invitación)">
+      </div>
+      <button class="btn-sm btn-outline" style="width:100%;padding:10px;font-size:12px" id="btn-gcal-prac">Añadir al calendario de Google</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: FIRMA -->
+<div class="sheet-overlay hidden" id="sh-firma">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Firma del alumno</h2><button class="btn-close" data-close="sh-firma">✕</button></div>
+    <div class="sheet-body">
+      <p id="firma-sub" style="font-size:13px;color:#64748b;margin-bottom:10px;font-weight:600"></p>
+      <div class="canvas-wrap"><canvas id="firma-canvas" width="1000" height="320"></canvas></div>
+      <div class="firma-hint">✍️ Firma con el dedo o el ratón</div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-sec" id="btn-limpiar">Limpiar</button>
+      <button class="btn-prim" id="btn-confirmar-firma">Confirmar firma</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: ALUMNO -->
+<div class="sheet-overlay hidden" id="sh-alumno">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2 id="sh-al-titulo">Nuevo alumno</h2><button class="btn-close" data-close="sh-alumno">✕</button></div>
+    <div class="sheet-body">
+      <div class="fg"><label>Nombre completo</label><input type="text" id="al-nombre" placeholder="Juan García López" autocomplete="name"></div>
+      <div class="fg"><label>Teléfono</label><input type="tel" id="al-tel" placeholder="+34 612 345 678" autocomplete="tel"></div>
+      <div class="fg"><label>Tipo de carnet</label>
+        <select id="al-carnet">
+          <option value="B">B — Coche</option><option value="A">A — Moto</option>
+          <option value="C">C — Camión</option><option value="A+B">A + B</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Notas</label>
+        <textarea id="al-notas" maxlength="6000" placeholder="Observaciones, historial..."></textarea>
+        <div class="char-c"><span id="al-notas-c">0</span>/6000</div>
+      </div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-sec" data-close="sh-alumno">Cancelar</button>
+      <button class="btn-prim" id="btn-guardar-alumno">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: FICHA -->
+<div class="sheet-overlay hidden" id="sh-ficha">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><div><h2 id="ficha-nom"></h2><p id="ficha-sub2"></p></div><button class="btn-close" data-close="sh-ficha">✕</button></div>
+    <div class="sheet-body">
+      <div class="ficha-sec">
+        <div class="ficha-sec-title">Datos del alumno</div>
+        <div class="ficha-row"><span class="ficha-lbl">Nombre</span><span class="ficha-val" id="f-nom"></span></div>
+        <div class="ficha-row"><span class="ficha-lbl">Teléfono</span><span class="ficha-val" id="f-tel"></span></div>
+        <div class="ficha-row"><span class="ficha-lbl">Carnet</span><span class="ficha-val" id="f-carnet"></span></div>
+        <div class="ficha-row"><span class="ficha-lbl">Alta</span><span class="ficha-val" id="f-alta"></span></div>
+      </div>
+      <div class="ficha-sec">
+        <div class="ficha-sec-title">Notas</div>
+        <div class="ficha-notas" id="f-notas"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn-sec" style="flex:1" id="btn-editar-ficha">✏️ Editar</button>
+        <button class="btn-prim" style="flex:1" id="btn-historial-ficha">📋 Historial</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: HISTORIAL -->
+<div class="sheet-overlay hidden" id="sh-hist">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><div><h2 id="hist-nom"></h2><p id="hist-sub"></p></div><button class="btn-close" data-close="sh-hist">✕</button></div>
+    <div class="sheet-body">
+      <div class="hist-stats" id="hist-stats"></div>
+      <div id="hist-rows"></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn-prim" style="flex:1" id="btn-csv">📊 Exportar CSV</button>
+        <button class="btn-sec" style="flex:1" id="btn-hist-gcal">📅 Google Cal</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: VER FIRMA -->
+<div class="sheet-overlay hidden" id="sh-ver-firma">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2 id="vf-nom">Firma</h2><button class="btn-close" data-close="sh-ver-firma">✕</button></div>
+    <div class="sheet-body">
+      <img id="vf-img" src="" style="width:100%;border-radius:4px;border:1px solid #cbd5e1" alt="Firma">
+      <button class="btn-prim" style="width:100%;margin-top:12px" id="btn-descargar-firma">Guardar imagen</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: NUEVO PROFESOR -->
+<div class="sheet-overlay hidden" id="sh-prof">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h2>Nuevo profesor</h2><button class="btn-close" data-close="sh-prof">✕</button></div>
+    <div class="sheet-body">
+      <div class="fg"><label>Nombre completo</label><input type="text" id="pr-nom" placeholder="Pedro Gómez Martínez"></div>
+      <div class="fg"><label>Teléfono (opcional)</label><input type="tel" id="pr-tel"></div>
+      <div class="fg"><label>Especialidad</label>
+        <select id="pr-esp">
+          <option value="coche">🚗 Coche</option><option value="moto">🏍️ Moto</option>
+          <option value="camion">🚛 Camión</option><option value="todos">🚗🏍️🚛 Todos</option>
+        </select>
+      </div>
+    </div>
+    <div class="sheet-btns">
+      <button class="btn-sec" data-close="sh-prof">Cancelar</button>
+      <button class="btn-prim" id="btn-guardar-prof">Guardar profesor</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="confirm-overlay hidden" id="sh-confirm">
+  <div class="confirm-box">
+    <div class="confirm-ico" id="cfm-ico">🗑️</div>
+    <div class="confirm-title" id="cfm-title"></div>
+    <div class="confirm-msg" id="cfm-msg"></div>
+    <div class="confirm-acts">
+      <button class="btn-conf-no" id="btn-cfm-no">Cancelar</button>
+      <button class="btn-conf-ok" id="btn-cfm-ok">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// FIREBASE v8 SDK
+// ══════════════════════════════════════════════════════════════
+firebase.initializeApp({
+  apiKey:            "AIzaSyDDIob394RatsgRIv445WkPNIjb29fm_iM",
+  authDomain:        "autogestor-autoescuela.firebaseapp.com",
+  projectId:         "autogestor-autoescuela",
+  storageBucket:     "autogestor-autoescuela.appspot.com",
+  messagingSenderId: "434289165209",
+  appId:             "1:434289165209:web:159f1e9c9e62f7e84ec908"
+});
+var db = firebase.firestore();
+
+// ══════════════════════════════════════════════════════════════
+// CONSTANTES
+// ══════════════════════════════════════════════════════════════
+var PASS_KEY   = 'diesel_pass_v7';
+var NOMBRE_KEY = 'diesel_nombre_v7';
+var FOLDER_KEY = 'diesel_folder_v7';
+var SORT_KEY = 'diesel_sort_v7';
+var WA_KEY   = 'diesel_wa_v7';
+var LOGO_KEY = 'diesel_logo_v7';
+
+var DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+var MESC = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+var MESL = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+var FRANJAS = (function(){
+  var f = [], m = 7*60;
+  while(m + 30 <= 20*60){ f.push(p2(Math.floor(m/60))+':'+p2(m%60)); m += 45; }
+  return f;
+})();
+
+var PROF_PAL = [
+  {bg:'#dbeafe',tx:'#1e40af',bd:'#93c5fd'},
+  {bg:'#dcfce7',tx:'#166534',bd:'#86efac'},
+  {bg:'#fce7f3',tx:'#9d174d',bd:'#f9a8d4'},
+  {bg:'#ede9fe',tx:'#4c1d95',bd:'#c4b5fd'},
+  {bg:'#ffedd5',tx:'#9a3412',bd:'#fdba74'},
+  {bg:'#cffafe',tx:'#155e75',bd:'#67e8f9'},
+  {bg:'#fef9c3',tx:'#854d0e',bd:'#fde047'},
+  {bg:'#fee2e2',tx:'#9f1239',bd:'#fca5a5'},
+  {bg:'#d1fae5',tx:'#065f46',bd:'#6ee7b7'},
+  {bg:'#f3e8ff',tx:'#6b21a8',bd:'#d8b4fe'},
+  {bg:'#e0f2fe',tx:'#075985',bd:'#7dd3fc'},
+  {bg:'#fef3c7',tx:'#92400e',bd:'#fde68a'}
+];
+
+// ══════════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════════
+var rol = '', sortMode = 'alpha';
+var currentDate = new Date(), profDate = new Date();
+var alumnos = [], profesores = [];
+var profSel = '', editAlId = null, fichaAlId = null;
+var firmaTgt = null, waTipo = 1, waPrac = null, cfmCb = null;
+var histTodas = [], vfData = null;
+var canvas, ctx, dibujando = false;
+var unsubCal = null, unsubProf = null;
+var profColors = {};
+
+// ══════════════════════════════════════════════════════════════
+// UTILIDADES
+// ══════════════════════════════════════════════════════════════
+function p2(n){ return String(n).padStart(2,'0'); }
+function dKey(d){ return d.toISOString().slice(0,10); }
+function fmtD(d){ return DIAS[d.getDay()]+' '+d.getDate()+' '+MESC[d.getMonth()]; }
+function fmtFecha(k){
+  var p=k.split('-'); return parseInt(p[2])+' '+MESL[parseInt(p[1])-1]+' '+p[0];
+}
+function getPass(){ return localStorage.getItem(PASS_KEY)||'1234'; }
+function getWAConf(){
+  try{ return JSON.parse(localStorage.getItem(WA_KEY)||'{}'); }catch(e){ return {}; }
+}
+function getLogo(){ return localStorage.getItem(LOGO_KEY)||'icon.png'; }
+function getNombre(){ return localStorage.getItem(NOMBRE_KEY)||'Autoescuela Diesel'; }
+function getCarpeta(){ return localStorage.getItem(FOLDER_KEY)||getNombre(); }
+function setNombre(nombre){
+  ['app-nombre-login','app-nombre-header'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.textContent=nombre;
+  });
+  document.title = nombre;
+  // WhatsApp previews se regeneran al abrir el sheet
+}
+function setLogos(src){
+  ['logo-login','logo-header','logo-preview'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.src=src;
+  });
+}
+function sync(s){
+  var d=document.getElementById('sync-dot');
+  if(d) d.className = s ? 'sync-dot '+s : 'sync-dot';
+}
+function toast(msg){
+  document.querySelectorAll('.toast').forEach(function(t){t.remove();});
+  var t=document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(function(){t.remove();},3500);
+}
+function abrirSheet(id){ document.getElementById(id).classList.remove('hidden'); document.body.style.overflow='hidden'; }
+function cerrarSheet(id){ document.getElementById(id).classList.add('hidden'); document.body.style.overflow=''; }
+function mostrarConfirm(opts){
+  document.getElementById('cfm-ico').textContent   = opts.ico||'🗑️';
+  document.getElementById('cfm-title').textContent = opts.title||'';
+  document.getElementById('cfm-msg').textContent   = opts.msg||'';
+  cfmCb = opts.okCb;
+  document.getElementById('sh-confirm').classList.remove('hidden');
+}
+function asignarColores(){
+  profColors = {};
+  profesores.forEach(function(p,i){ profColors[p.id] = PROF_PAL[i % PROF_PAL.length]; });
+}
+function gcalUrl(titulo, fecha, hora, dur, email){
+  dur = dur || 45;
+  var pp=fecha.split('-'), hp=hora.split(':');
+  var s = pp[0]+pp[1]+pp[2]+'T'+hp[0]+hp[1]+'00';
+  var e = new Date(+pp[0],+pp[1]-1,+pp[2],+hp[0],+hp[1]+dur);
+  function pn(n){return String(n).padStart(2,'0');}
+  var es = e.getFullYear()+pn(e.getMonth()+1)+pn(e.getDate())+'T'+pn(e.getHours())+pn(e.getMinutes())+'00';
+  var url = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    +'&text='+encodeURIComponent(titulo)+'&dates='+s+'/'+es
+    +'&details='+encodeURIComponent(getNombre());
+  if(email && email.trim()) url += '&add='+encodeURIComponent(email.trim());
+  return url;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SHEETS: cerrar al pulsar overlay / data-close
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll('.sheet-overlay').forEach(function(el){
+  el.addEventListener('click',function(e){ if(e.target===el) cerrarSheet(el.id); });
+});
+document.querySelectorAll('[data-close]').forEach(function(btn){
+  btn.onclick = function(){ cerrarSheet(btn.dataset.close); };
+});
+
+// ══════════════════════════════════════════════════════════════
+// CONFIRM
+// ══════════════════════════════════════════════════════════════
+document.getElementById('btn-cfm-no').onclick = function(){
+  document.getElementById('sh-confirm').classList.add('hidden'); cfmCb=null;
+};
+document.getElementById('btn-cfm-ok').onclick = async function(){
+  if(cfmCb) await cfmCb();
+  document.getElementById('sh-confirm').classList.add('hidden'); cfmCb=null;
+};
+
+// ══════════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════════
+document.getElementById('role-admin').onclick = function(){
+  document.getElementById('role-admin').classList.add('sel');
+  document.getElementById('role-prof').classList.remove('sel');
+  document.getElementById('pass-wrap').style.display='block';
+};
+document.getElementById('role-prof').onclick = function(){
+  document.getElementById('role-prof').classList.add('sel');
+  document.getElementById('role-admin').classList.remove('sel');
+  document.getElementById('pass-wrap').style.display='none';
+};
+document.getElementById('login-pass').onkeydown = function(e){ if(e.key==='Enter') entrar(); };
+document.getElementById('login-btn').onclick = entrar;
+
+function entrar(){
+  var esAdmin = document.getElementById('role-admin').classList.contains('sel');
+  if(esAdmin){
+    var p = document.getElementById('login-pass').value;
+    if(p !== getPass()){ document.getElementById('login-error').style.display='block'; return; }
+  }
+  rol = esAdmin ? 'admin' : 'profesor';
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('main-app').classList.remove('hidden');
+  document.getElementById('rol-label').textContent = esAdmin ? 'Administrativo' : 'Profesor';
+  document.getElementById('cfg-rol').textContent   = esAdmin ? 'Administrativo' : 'Profesor';
+  // Elementos solo para admin
+  document.getElementById('btn-nuevo-al').classList.toggle('hidden',!esAdmin);
+  document.getElementById('cfg-admin').classList.toggle('hidden',!esAdmin);
+  document.getElementById('prof-mgmt').classList.toggle('hidden',!esAdmin);
+  document.getElementById('prof-list-wrap').classList.toggle('hidden',!esAdmin);
+  // Preferencias guardadas
+  setLogos(getLogo());
+  setNombre(getNombre());
+  sortMode = localStorage.getItem(SORT_KEY)||'alpha';
+  document.querySelectorAll('[data-sort]').forEach(function(b){
+    b.classList.toggle('active', b.dataset.sort===sortMode);
+  });
+  var wc = getWAConf();
+  if(wc.key)   document.getElementById('wa-key').value   = wc.key;
+  if(wc.phone) document.getElementById('wa-phone').value = wc.phone;
+  initData();
+}
+
+// ══════════════════════════════════════════════════════════════
+// LOGOUT
+// ══════════════════════════════════════════════════════════════
+document.getElementById('btn-salir').onclick = function(){
+  if(unsubCal)  { unsubCal();  unsubCal=null;  }
+  if(unsubProf) { unsubProf(); unsubProf=null; }
+  rol=''; alumnos=[]; profesores=[]; profSel=''; editAlId=null; fichaAlId=null; profColors={};
+  document.getElementById('main-app').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-pass').value='';
+  document.getElementById('login-error').style.display='none';
+  document.getElementById('role-admin').classList.add('sel');
+  document.getElementById('role-prof').classList.remove('sel');
+  document.getElementById('pass-wrap').style.display='block';
+};
+
+// ══════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(function(btn){
+  btn.onclick = function(){ irTab(btn.dataset.tab); };
+});
+function irTab(t){
+  ['admin','profesor','alumnos','config'].forEach(function(id){
+    document.getElementById('tab-'+id).classList.toggle('hidden', id!==t);
+  });
+  document.querySelectorAll('.tab').forEach(function(b){
+    b.classList.toggle('active', b.dataset.tab===t);
+  });
+  if(t==='admin')    subscribeCal();
+  if(t==='profesor'){ renderProfesores(); subscribeProf(); }
+  if(t==='alumnos')  renderAlumnos();
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT DATA
+// ══════════════════════════════════════════════════════════════
+async function initData(){
+  sync('syncing');
+  try{
+    var res = await Promise.all([
+      db.collection('alumnos').get(),
+      db.collection('profesores').get()
+    ]);
+    alumnos    = res[0].docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
+    profesores = res[1].docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
+    asignarColores();
+    actualizarSelectProfs();
+    renderAlumnos();
+    subscribeCal();
+  }catch(e){
+    console.error('initData:',e);
+    toast('Error conexión: '+e.message);
+    sync('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// CALENDARIO — onSnapshot tiempo real
+// ══════════════════════════════════════════════════════════════
+document.getElementById('btn-dia-prev').onclick = function(){ cambiarDia(-1); };
+document.getElementById('btn-dia-next').onclick = function(){ cambiarDia(1); };
+document.getElementById('btn-hoy').onclick = function(){
+  currentDate = new Date(); subscribeCal();
+};
+document.getElementById('btn-gcal-dia').onclick = function(){
+  if(!window._pracHoy || !window._pracHoy.length){ toast('Sin prácticas hoy'); return; }
+  window._pracHoy.forEach(function(p){
+    window.open(gcalUrl(
+      'Práctica '+p.vehiculo+' · '+p.alumnoNombre,
+      dKey(currentDate), p.hora, p.duracion||45, ''
+    ),'_blank');
+  });
+  toast(window._pracHoy.length+' exportadas a Google Calendar');
+};
+
+function cambiarDia(n){
+  currentDate = new Date(currentDate); currentDate.setDate(currentDate.getDate()+n); subscribeCal();
+}
+
+function subscribeCal(){
+  if(unsubCal){ unsubCal(); unsubCal=null; }
+  document.getElementById('fecha-label').textContent = fmtD(currentDate);
+  document.getElementById('cal-body').innerHTML = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
+  sync('syncing');
+  unsubCal = db.collection('practicas_'+dKey(currentDate))
+    .onSnapshot(function(snap){
+      window._pracHoy = snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
+      window._pracHoy.sort(function(a,b){ return (a.hora||'').localeCompare(b.hora||''); });
+      renderCalendario(window._pracHoy);
+      sync('online');
+    }, function(err){
+      console.error('subscribeCal:',err);
+      toast('Error calendario: '+err.message);
+      sync('');
+    });
+}
+
+function renderCalendario(prs){
+  document.getElementById('fecha-label').textContent = fmtD(currentDate);
+  var esAdmin = rol==='admin';
+  // Leyenda de profesores
+  var legend = document.getElementById('cal-legend');
+  if(profesores.length){
+    legend.innerHTML = profesores.map(function(p){
+      var c = profColors[p.id] || {bg:'#f1f5f9',tx:'#374151',bd:'#cbd5e1'};
+      return '<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;background:'+c.bg+';color:'+c.tx+';border:1px solid '+c.bd+'">● '+(p.nombre||'').split(' ')[0]+'</span>';
+    }).join('');
+    legend.style.display='flex';
+  } else { legend.style.display='none'; }
+  // Filas
+  var body = document.getElementById('cal-body');
+  body.innerHTML = '';
+  FRANJAS.forEach(function(hora){
+    var row = document.createElement('div'); row.className='cal-row';
+    var chips = prs.filter(function(p){ return p.hora===hora; }).map(function(p){
+      var c = p.profesorId && profColors[p.profesorId]
+        ? profColors[p.profesorId] : {bg:'#f1f5f9',tx:'#374151',bd:'#cbd5e1'};
+      var nom = (p.alumnoNombre||'').split(' ')[0];
+      var vico = p.vehiculo==='moto'?'🏍️':p.vehiculo==='camion'?'🚛':'🚗';
+      var profNom = p.profesorId && profColors[p.profesorId]
+        ? (p.profesorNombre||'').split(' ')[0] : '';
+      var durTag = p.duracion===30
+        ? '<span style="font-size:9px;opacity:.6;margin-left:2px">30\'</span>' : '';
+      var del = esAdmin
+        ? '<span class="chip-x" data-id="'+p.id+'" data-hora="'+hora+'" data-nom="'+(p.alumnoNombre||'')+'">✕</span>' : '';
+      return '<span class="chip" style="background:'+c.bg+';color:'+c.tx+';border-color:'+c.bd+'">'
+        +vico+' '+nom+(profNom?' <span style="opacity:.65;font-size:10px">'+profNom+'</span>':'')+durTag+del+'</span>';
+    }).join('');
+    var addBtn = esAdmin ? '<button class="btn-add" data-hora="'+hora+'">+</button>' : '';
+    row.innerHTML = '<div class="cal-hora">'+hora+'</div><div class="cal-slot">'+chips+addBtn+'</div>';
+    body.appendChild(row);
+  });
+  body.querySelectorAll('.chip-x').forEach(function(x){
+    x.onclick = function(e){
+      e.stopPropagation();
+      delPrac(x.dataset.id, x.dataset.hora, x.dataset.nom);
+    };
+  });
+  body.querySelectorAll('.btn-add').forEach(function(btn){
+    btn.onclick = function(){ abrirNuevaPrac(btn.dataset.hora); };
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PRÁCTICA CRUD
+// ══════════════════════════════════════════════════════════════
+// Selector duración
+document.querySelectorAll('.dur-opt').forEach(function(opt){
+  opt.onclick = function(){
+    document.querySelectorAll('.dur-opt').forEach(function(o){ o.classList.remove('sel'); });
+    opt.classList.add('sel');
+    document.getElementById('m-duracion').value = opt.dataset.dur;
+  };
+});
+
+function abrirNuevaPrac(hora){
+  document.getElementById('m-hora').innerHTML = FRANJAS.map(function(f){
+    return '<option value="'+f+'"'+(f===hora?' selected':'')+'>'+f+'</option>';
+  }).join('');
+  // Reset duración a 45
+  document.querySelectorAll('.dur-opt').forEach(function(o){ o.classList.remove('sel'); });
+  document.querySelector('.dur-opt[data-dur="45"]').classList.add('sel');
+  document.getElementById('m-duracion').value = '45';
+  var alSort = [].concat(alumnos).sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||''); });
+  document.getElementById('m-alumno').innerHTML = alSort.map(function(a){
+    return '<option value="'+a.id+'">'+a.nombre+'</option>';
+  }).join('');
+  document.getElementById('m-prof').innerHTML = '<option value="">— Sin asignar —</option>'+
+    profesores.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
+  abrirSheet('sh-practica');
+}
+
+document.getElementById('btn-guardar-prac').onclick = async function(){
+  var hora  = document.getElementById('m-hora').value;
+  var dur   = parseInt(document.getElementById('m-duracion').value)||45;
+  var alId  = document.getElementById('m-alumno').value;
+  var prId  = document.getElementById('m-prof').value;
+  var veh   = document.getElementById('m-vehiculo').value;
+  var al    = alumnos.find(function(a){ return a.id===alId; });
+  var pr    = profesores.find(function(p){ return p.id===prId; });
+  if(!al){ toast('Selecciona un alumno'); return; }
+  sync('syncing');
+  var fecha = dKey(currentDate);
+  var data  = {
+    hora:hora, duracion:dur,
+    alumnoId:alId, alumnoNombre:al.nombre,
+    profesorId:prId||'', profesorNombre:pr?pr.nombre:'Sin asignar',
+    vehiculo:veh, firmada:false, firmaBase64:'', firmaTimestamp:''
+  };
+  try{
+    await db.collection('fechas_usadas').doc(fecha).set({fecha:fecha});
+    var ref = await db.collection('practicas_'+fecha).add(data);
+    cerrarSheet('sh-practica');
+    toast('Práctica añadida ✓');
+    setTimeout(function(){ abrirWA(Object.assign({},data,{id:ref.id,fecha:fecha})); },350);
+  }catch(e){
+    sync(''); toast('Error al guardar: '+e.message);
+  }
+};
+
+function delPrac(id, hora, nombre){
+  mostrarConfirm({ico:'🗑️', title:'¿Borrar práctica?', msg:(nombre||'Alumno')+' · '+hora,
+    okCb: async function(){
+      sync('syncing');
+      try{
+        await db.collection('practicas_'+dKey(currentDate)).doc(id).delete();
+        toast('Eliminada');
+      }catch(e){ sync(''); toast('Error: '+e.message); }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROFESOR — onSnapshot tiempo real
+// ══════════════════════════════════════════════════════════════
+function actualizarSelectProfs(){
+  var sel = document.getElementById('prof-select');
+  var val = sel.value;
+  sel.innerHTML = '<option value="">— Selecciona un profesor —</option>'+
+    profesores.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
+  if(val) sel.value = val;
+}
+document.getElementById('prof-select').onchange = function(){
+  profSel = this.value; subscribeProf();
+};
+document.getElementById('btn-prof-prev').onclick = function(){
+  profDate=new Date(profDate); profDate.setDate(profDate.getDate()-1); subscribeProf();
+};
+document.getElementById('btn-prof-next').onclick = function(){
+  profDate=new Date(profDate); profDate.setDate(profDate.getDate()+1); subscribeProf();
+};
+
+function subscribeProf(){
+  if(unsubProf){ unsubProf(); unsubProf=null; }
+  document.getElementById('fecha-prof-label').textContent = fmtD(profDate);
+  if(!profSel){
+    document.getElementById('prac-list').innerHTML = '<div class="empty"><div class="eico">👨‍🏫</div><p>Selecciona un profesor</p></div>';
+    return;
+  }
+  document.getElementById('prac-list').innerHTML = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
+  sync('syncing');
+  unsubProf = db.collection('practicas_'+dKey(profDate))
+    .onSnapshot(function(snap){
+      var prs = snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); })
+        .filter(function(p){ return p.profesorId===profSel; })
+        .sort(function(a,b){ return (a.hora||'').localeCompare(b.hora||''); });
+      renderProfesor(prs);
+      sync('online');
+    }, function(err){
+      console.error('subscribeProf:',err); sync('');
+    });
+}
+
+function renderProfesor(prs){
+  document.getElementById('fecha-prof-label').textContent = fmtD(profDate);
+  var list = document.getElementById('prac-list');
+  if(!prs.length){
+    list.innerHTML = '<div class="empty"><div class="eico">📅</div><p>Sin prácticas este día</p></div>';
+    return;
+  }
+  list.innerHTML = prs.map(function(p){
+    var veh = p.vehiculo||'coche';
+    var vico = veh==='moto'?'🏍️':veh==='camion'?'🚛':'🚗';
+    var dur = p.duracion ? ' · '+p.duracion+' min' : '';
+    var firmaEl = p.firmada
+      ? '<div class="firma-ok-ico">✓</div>'
+      : '<button class="btn-firmar" data-fecha="'+dKey(profDate)+'" data-id="'+p.id+'" data-nom="'+(p.alumnoNombre||'')+'">Firmar</button>';
+    return '<div class="pcard'+(p.firmada?' firmada':'')+'">'
+      +'<div class="pcard-hora">'+(p.hora||'')+'</div>'
+      +'<div class="pcard-info">'
+        +'<div class="pcard-nom">'+(p.alumnoNombre||'')+'</div>'
+        +'<div class="pcard-sub"><span class="vbadge '+veh+'">'+vico+' '+veh+'</span>'
+          +(p.firmada?'<span style="color:#16a34a;font-size:11px">✓ '+(p.firmaTimestamp||'')+'</span>':'')
+          +'<span style="font-size:10px;color:#94a3b8">'+dur+'</span>'
+        +'</div>'
+      +'</div>'+firmaEl+'</div>';
+  }).join('');
+  list.querySelectorAll('.btn-firmar').forEach(function(btn){
+    btn.onclick = function(){ abrirFirma(btn.dataset.fecha, btn.dataset.id, btn.dataset.nom); };
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// PROFESORES CRUD — sin overrides, función única
+// ══════════════════════════════════════════════════════════════
+function renderProfesores(){
+  var body = document.getElementById('prof-body');
+  var espMap = {coche:'🚗 Coche',moto:'🏍️ Moto',camion:'🚛 Camión',todos:'🚗🏍️🚛'};
+  if(!profesores.length){
+    body.innerHTML = '<div class="empty"><div class="eico">👨‍🏫</div><p>Sin profesores registrados</p></div>';
+    return;
+  }
+  body.innerHTML = profesores.map(function(p){
+    var ini = (p.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
+    var c   = profColors[p.id]||{bg:'#dbeafe',tx:'#1e40af'};
+    var esp = espMap[p.especialidad]||'';
+    return '<div class="arow">'
+      +'<div class="avatar" style="background:'+c.bg+';color:'+c.tx+'">'+ini+'</div>'
+      +'<div class="arow-info"><div class="arow-nom">'+(p.nombre||'')+'</div>'
+        +'<div class="arow-sub">'+esp+(p.telefono?' · '+p.telefono:'')+'</div></div>'
+      +'<button class="icon-btn del-btn" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'">🗑️</button>'
+      +'</div>';
+  }).join('');
+  body.querySelectorAll('.del-btn').forEach(function(btn){
+    btn.onclick = function(){
+      mostrarConfirm({ico:'👨‍🏫', title:'¿Borrar profesor?', msg:btn.dataset.nom||'',
+        okCb: async function(){
+          sync('syncing');
+          try{
+            await db.collection('profesores').doc(btn.dataset.id).delete();
+            profesores = profesores.filter(function(p){ return p.id!==btn.dataset.id; });
+            asignarColores(); actualizarSelectProfs(); renderProfesores();
+            sync('online'); toast('Profesor eliminado');
+          }catch(e){ sync(''); toast('Error: '+e.message); }
+        }
+      });
+    };
+  });
+}
+
+document.getElementById('btn-nuevo-prof').onclick = function(){ abrirSheet('sh-prof'); };
+document.getElementById('btn-guardar-prof').onclick = async function(){
+  var nombre = document.getElementById('pr-nom').value.trim();
+  if(!nombre){ toast('Introduce el nombre'); return; }
+  var datos = {
+    nombre:nombre,
+    telefono:document.getElementById('pr-tel').value.trim(),
+    especialidad:document.getElementById('pr-esp').value
+  };
+  sync('syncing');
+  try{
+    var ref = await db.collection('profesores').add(datos);
+    profesores.push(Object.assign({id:ref.id},datos));
+    profesores.sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||''); });
+    asignarColores(); actualizarSelectProfs(); renderProfesores();
+    document.getElementById('pr-nom').value = '';
+    document.getElementById('pr-tel').value = '';
+    cerrarSheet('sh-prof');
+    sync('online'); toast('Profesor añadido ✓');
+  }catch(e){
+    sync(''); toast('Error al guardar: '+e.message);
+  }
+};
+
+// ══════════════════════════════════════════════════════════════
+// ALUMNOS
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll('[data-sort]').forEach(function(btn){
+  btn.onclick = function(){
+    sortMode = btn.dataset.sort;
+    localStorage.setItem(SORT_KEY, sortMode);
+    document.querySelectorAll('[data-sort]').forEach(function(b){ b.classList.toggle('active', b.dataset.sort===sortMode); });
+    renderAlumnos();
+  };
+});
+document.getElementById('search-al').oninput = renderAlumnos;
+document.getElementById('btn-nuevo-al').onclick = abrirNuevoAl;
+
+function renderAlumnos(){
+  var q = (document.getElementById('search-al').value||'').toLowerCase();
+  var fil = alumnos.filter(function(a){
+    return (a.nombre||'').toLowerCase().includes(q)||(a.telefono||'').includes(q);
+  });
+  fil.sort(sortMode==='alpha'
+    ? function(a,b){ return (a.nombre||'').localeCompare(b.nombre||''); }
+    : function(a,b){ return (a.createdAt||0)-(b.createdAt||0); }
+  );
+  var esAdmin = rol==='admin';
+  var body = document.getElementById('al-body');
+  if(!fil.length){ body.innerHTML='<div class="empty"><div class="eico">👥</div><p>Sin alumnos</p></div>'; return; }
+  body.innerHTML = fil.map(function(a){
+    var ini = (a.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
+    var btns = esAdmin
+      ? '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
+        +'<button class="icon-btn del-btn" data-id="'+a.id+'" data-nom="'+(a.nombre||'')+'">🗑️</button>'
+      : '';
+    return '<div class="arow">'
+      +'<div class="avatar" data-id="'+a.id+'">'+ini+'</div>'
+      +'<div class="arow-info" data-id="'+a.id+'">'
+        +'<div class="arow-nom">'+(a.nombre||'')+'</div>'
+        +'<div class="arow-sub">'+(a.telefono||'Sin teléfono')+' · <span class="carnet-tag">'+(a.carnet||'B')+'</span></div>'
+      +'</div>'+btns+'</div>';
+  }).join('');
+  body.querySelectorAll('.avatar,.arow-info').forEach(function(el){
+    el.onclick = function(){ abrirFicha(el.dataset.id); };
+  });
+  body.querySelectorAll('.edit-btn').forEach(function(btn){
+    btn.onclick = function(e){ e.stopPropagation(); abrirEditAl(btn.dataset.id); };
+  });
+  body.querySelectorAll('.del-btn').forEach(function(btn){
+    btn.onclick = function(e){
+      e.stopPropagation();
+      mostrarConfirm({ico:'👤', title:'¿Borrar alumno?', msg:(btn.dataset.nom||'')+'\n\nSus prácticas no se borran.',
+        okCb: async function(){
+          sync('syncing');
+          try{
+            await db.collection('alumnos').doc(btn.dataset.id).delete();
+            alumnos = alumnos.filter(function(a){ return a.id!==btn.dataset.id; });
+            renderAlumnos(); sync('online'); toast('Eliminado');
+          }catch(e){ sync(''); toast('Error: '+e.message); }
+        }
+      });
+    };
+  });
+}
+
+function abrirFicha(id){
+  fichaAlId = id;
+  var a = alumnos.find(function(x){ return x.id===id; }); if(!a) return;
+  document.getElementById('ficha-nom').textContent  = a.nombre||'';
+  document.getElementById('ficha-sub2').textContent = 'Carnet '+(a.carnet||'');
+  document.getElementById('f-nom').textContent      = a.nombre||'';
+  document.getElementById('f-tel').textContent      = a.telefono||'Sin teléfono';
+  document.getElementById('f-carnet').textContent   = a.carnet||'';
+  document.getElementById('f-alta').textContent     = a.createdAt ? new Date(a.createdAt).toLocaleDateString('es-ES') : '—';
+  var el = document.getElementById('f-notas');
+  if(a.notas&&a.notas.trim()){ el.textContent=a.notas; el.classList.remove('vacio'); }
+  else{ el.textContent='Sin notas'; el.classList.add('vacio'); }
+  abrirSheet('sh-ficha');
+}
+document.getElementById('btn-editar-ficha').onclick = function(){
+  cerrarSheet('sh-ficha'); setTimeout(function(){ abrirEditAl(fichaAlId); },250);
+};
+document.getElementById('btn-historial-ficha').onclick = function(){ abrirHistorial(fichaAlId); };
+
+function abrirNuevoAl(){
+  editAlId = null;
+  document.getElementById('sh-al-titulo').textContent = 'Nuevo alumno';
+  ['al-nombre','al-tel','al-notas'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('al-carnet').value = 'B';
+  document.getElementById('al-notas-c').textContent = '0';
+  abrirSheet('sh-alumno');
+}
+function abrirEditAl(id){
+  var a = alumnos.find(function(x){ return x.id===id; }); if(!a) return;
+  editAlId = id;
+  document.getElementById('sh-al-titulo').textContent = 'Editar alumno';
+  document.getElementById('al-nombre').value = a.nombre||'';
+  document.getElementById('al-tel').value    = a.telefono||'';
+  document.getElementById('al-carnet').value = a.carnet||'B';
+  document.getElementById('al-notas').value  = a.notas||'';
+  document.getElementById('al-notas-c').textContent = (a.notas||'').length;
+  abrirSheet('sh-alumno');
+}
+document.getElementById('al-notas').oninput = function(){ document.getElementById('al-notas-c').textContent=this.value.length; };
+document.getElementById('btn-guardar-alumno').onclick = async function(){
+  var nombre = document.getElementById('al-nombre').value.trim();
+  if(!nombre){ toast('Introduce el nombre'); return; }
+  var datos = { nombre:nombre, telefono:document.getElementById('al-tel').value.trim(),
+    carnet:document.getElementById('al-carnet').value, notas:document.getElementById('al-notas').value.trim() };
+  sync('syncing');
+  try{
+    if(editAlId){
+      await db.collection('alumnos').doc(editAlId).update(datos);
+      var idx = alumnos.findIndex(function(a){ return a.id===editAlId; });
+      if(idx>=0) alumnos[idx] = Object.assign({},alumnos[idx],datos);
+      toast('Actualizado ✓');
+    }else{
+      datos.createdAt = Date.now();
+      var ref = await db.collection('alumnos').add(datos);
+      alumnos.push(Object.assign({id:ref.id},datos));
+      toast('Alumno añadido ✓');
+    }
+    editAlId=null; cerrarSheet('sh-alumno'); renderAlumnos(); sync('online');
+  }catch(e){ sync(''); toast('Error: '+e.message); }
+};
+
+// ══════════════════════════════════════════════════════════════
+// HISTORIAL — carga paralela con filtro
+// ══════════════════════════════════════════════════════════════
+async function abrirHistorial(alId){
+  var al = alumnos.find(function(a){ return a.id===alId; }); if(!al) return;
+  cerrarSheet('sh-ficha');
+  fichaAlId = alId;
+  document.getElementById('hist-nom').textContent = al.nombre||'';
+  document.getElementById('hist-sub').textContent = 'Carnet '+(al.carnet||'');
+  document.getElementById('hist-rows').innerHTML  = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
+  abrirSheet('sh-hist');
+  sync('syncing');
+  try{
+    var fechasSnap = await db.collection('fechas_usadas').get();
+    var fechas = fechasSnap.docs.map(function(d){ return d.id; });
+    if(!fechas.length){ histTodas=[]; renderHistorial(al); sync('online'); return; }
+    var resultados = await Promise.all(fechas.map(function(fecha){
+      return db.collection('practicas_'+fecha)
+        .where('alumnoId','==',alId).get()
+        .then(function(snap){
+          return snap.docs.map(function(d){ return Object.assign({id:d.id},d.data(),{fecha:fecha}); });
+        }).catch(function(){ return []; });
+    }));
+    histTodas = [];
+    resultados.forEach(function(arr){ arr.forEach(function(p){ histTodas.push(p); }); });
+    histTodas.sort(function(a,b){ return b.fecha.localeCompare(a.fecha)||a.hora.localeCompare(b.hora); });
+    renderHistorial(al); sync('online');
+  }catch(e){ sync(''); toast('Error historial: '+e.message); }
+}
+
+function renderHistorial(al){
+  var firmadas = histTodas.filter(function(p){ return p.firmada; }).length;
+  document.getElementById('hist-stats').innerHTML =
+    '<div class="stat-box"><div class="stat-num">'+histTodas.length+'</div><div class="stat-lbl">Total</div></div>'+
+    '<div class="stat-box"><div class="stat-num">'+firmadas+'</div><div class="stat-lbl">Firmadas</div></div>'+
+    '<div class="stat-box"><div class="stat-num">'+(histTodas.length-firmadas)+'</div><div class="stat-lbl">Pendientes</div></div>';
+  if(!histTodas.length){
+    document.getElementById('hist-rows').innerHTML = '<div class="empty"><div class="eico">📋</div><p>Sin prácticas registradas</p></div>';
+    return;
+  }
+  document.getElementById('hist-rows').innerHTML = histTodas.map(function(p){
+    var veh = p.vehiculo||'coche';
+    var vico = veh==='moto'?'🏍️':veh==='camion'?'🚛':'🚗';
+    var dur = p.duracion ? ' · '+p.duracion+'\'' : '';
+    var firmaHtml = p.firmada
+      ? '<span class="firma-tag ok">✓ '+(p.firmaTimestamp||'')+'</span>'
+        +(p.firmaBase64
+          ? '<img class="firma-thumb" src="'+p.firmaBase64+'" data-id="'+p.id+'" alt="Firma">'
+          : '')
+      : '<span class="firma-tag no">Pendiente</span>';
+    return '<div class="hist-row">'
+      +'<div style="min-width:86px;flex-shrink:0">'
+        +'<div style="font-size:10px;color:#94a3b8">'+fmtFecha(p.fecha)+'</div>'
+        +'<div style="font-weight:700;font-size:14px;color:#0f2d6b">'+(p.hora||'')+'</div>'
+      +'</div>'
+      +'<span class="vbadge '+veh+'">'+vico+' '+veh+'</span>'
+      +'<span class="prof-tag">'+((p.profesorNombre||'—').split(' ')[0])+'</span>'
+      +'<span style="font-size:10px;color:#94a3b8">'+dur+'</span>'
+      +'<div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'+firmaHtml+'</div>'
+      +'</div>';
+  }).join('');
+  document.querySelectorAll('.firma-thumb').forEach(function(img){
+    img.onclick = function(){ verFirma(img.dataset.id); };
+  });
+}
+
+document.getElementById('btn-csv').onclick = exportarCSV;
+document.getElementById('btn-hist-gcal').onclick = function(){
+  var max = Math.min(histTodas.length,5);
+  for(var i=0;i<max;i++){
+    var p = histTodas[i];
+    window.open(gcalUrl('Práctica '+p.vehiculo+' · '+p.alumnoNombre, p.fecha, p.hora, p.duracion||45,''),'_blank');
+  }
+  toast(max+' exportadas');
+};
+
+// ══════════════════════════════════════════════════════════════
+// CSV
+// ══════════════════════════════════════════════════════════════
+function exportarCSV(){
+  var al = alumnos.find(function(a){ return a.id===fichaAlId; });
+  if(!al||!histTodas.length){ toast('Sin datos para exportar'); return; }
+  function esc(v){
+    var s = String(v===null||v===undefined?'':v);
+    return (s.includes(',')||s.includes('"')||s.includes('\n')) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }
+  var rows = [['Fecha','Hora','Duración','Vehículo','Profesor','Firmada','Hora firma'].join(',')];
+  histTodas.forEach(function(p){
+    rows.push([fmtFecha(p.fecha),p.hora||'',(p.duracion||45)+'min',p.vehiculo||'coche',
+      p.profesorNombre||'—',p.firmada?'Si':'No',p.firmaTimestamp||'—'].map(esc).join(','));
+  });
+  var csv = '\uFEFF'+rows.join('\r\n');
+  var filename = 'Historial_'+al.nombre.replace(/\s+/g,'_')+'.csv';
+  try{
+    var blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a'); a.href=url; a.download=filename; a.style.display='none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); },2000);
+    toast('CSV descargado — ábrelo con Google Sheets o Excel');
+  }catch(e){
+    var a2 = document.createElement('a');
+    a2.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a2.download = filename; a2.style.display='none';
+    document.body.appendChild(a2); a2.click(); document.body.removeChild(a2);
+    toast('CSV listo');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// VER FIRMA
+// ══════════════════════════════════════════════════════════════
+function verFirma(id){
+  vfData = histTodas.find(function(x){ return x.id===id; });
+  if(!vfData||!vfData.firmaBase64) return;
+  document.getElementById('vf-nom').textContent = vfData.alumnoNombre||'Firma';
+  document.getElementById('vf-img').src = vfData.firmaBase64;
+  abrirSheet('sh-ver-firma');
+}
+document.getElementById('btn-descargar-firma').onclick = function(){
+  if(!vfData) return;
+  var a = document.createElement('a');
+  a.href=vfData.firmaBase64; a.download='Firma_'+(vfData.alumnoNombre||'alumno')+'_'+vfData.fecha+'.png'; a.click();
+};
+
+// ══════════════════════════════════════════════════════════════
+// FIRMA CANVAS
+// ══════════════════════════════════════════════════════════════
+function abrirFirma(fecha, pracId, nombre){
+  firmaTgt = {fecha:fecha, pracId:pracId};
+  document.getElementById('firma-sub').textContent = nombre||'';
+  abrirSheet('sh-firma');
+  setTimeout(function(){
+    canvas = document.getElementById('firma-canvas');
+    ctx    = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle='#1a56db'; ctx.lineWidth=4; ctx.lineCap='round'; ctx.lineJoin='round';
+    dibujando = false;
+    function pt(e){
+      var r=canvas.getBoundingClientRect();
+      return {x:(e.clientX-r.left)*canvas.width/r.width, y:(e.clientY-r.top)*canvas.height/r.height};
+    }
+    canvas.onmousedown = function(e){ dibujando=true; var p=pt(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); };
+    canvas.onmousemove = function(e){ if(!dibujando) return; var p=pt(e); ctx.lineTo(p.x,p.y); ctx.stroke(); };
+    canvas.onmouseup   = function(){ dibujando=false; };
+    canvas.addEventListener('touchstart',function(e){
+      e.preventDefault(); dibujando=true;
+      var t=e.touches[0]; var r=canvas.getBoundingClientRect();
+      ctx.beginPath(); ctx.moveTo((t.clientX-r.left)*canvas.width/r.width,(t.clientY-r.top)*canvas.height/r.height);
+    },{passive:false});
+    canvas.addEventListener('touchmove',function(e){
+      e.preventDefault(); if(!dibujando) return;
+      var t=e.touches[0]; var r=canvas.getBoundingClientRect();
+      ctx.lineTo((t.clientX-r.left)*canvas.width/r.width,(t.clientY-r.top)*canvas.height/r.height); ctx.stroke();
+    },{passive:false});
+    canvas.ontouchend = function(){ dibujando=false; };
+  },150);
+}
+document.getElementById('btn-limpiar').onclick = function(){ if(ctx) ctx.clearRect(0,0,canvas.width,canvas.height); };
+document.getElementById('btn-confirmar-firma').onclick = async function(){
+  if(!firmaTgt) return;
+  var b64 = canvas.toDataURL('image/png');
+  var now  = new Date();
+  var ts   = p2(now.getHours())+':'+p2(now.getMinutes());
+  sync('syncing');
+  try{
+    await db.collection('practicas_'+firmaTgt.fecha).doc(firmaTgt.pracId).update({
+      firmada:true, firmaBase64:b64, firmaTimestamp:ts
+    });
+    cerrarSheet('sh-firma'); sync('online'); toast('Firma registrada ✓');
+  }catch(e){ sync(''); toast('Error firma: '+e.message); }
+};
+
+// ══════════════════════════════════════════════════════════════
+// WHATSAPP — window.open SÍNCRONO para evitar popup blocker
+// ══════════════════════════════════════════════════════════════
+function abrirWA(prac){
+  waPrac=prac; waTipo=1;
+  var al   = alumnos.find(function(a){ return a.id===prac.alumnoId; }) || {nombre:prac.alumnoNombre||'',telefono:''};
+  var nom  = (al.nombre||'').split(' ')[0];
+  var prof = prac.profesorNombre || 'el profesor';
+  document.getElementById('wa-info').textContent  = '👤 '+(al.nombre||'')+' · '+(al.telefono||'sin teléfono');
+  document.getElementById('wa-prev1').textContent = 'Hola '+nom+', tienes cita con '+prof+' a las '+prac.hora+' en '+getNombre()+'. ¡Te esperamos!';
+  document.getElementById('wa-prev2').textContent = 'Hola '+nom+', tu hora ha sido modificada. Nuevo horario: '+prac.hora+'. ¡Hasta pronto!';
+  document.getElementById('wa-tipo1').classList.add('sel');
+  document.getElementById('wa-tipo2').classList.remove('sel');
+  document.getElementById('gcal-email').value = al.telefono ? '' : '';
+  abrirSheet('sh-wa');
+}
+document.getElementById('wa-tipo1').onclick = function(){
+  waTipo=1; this.classList.add('sel'); document.getElementById('wa-tipo2').classList.remove('sel');
+};
+document.getElementById('wa-tipo2').onclick = function(){
+  waTipo=2; this.classList.add('sel'); document.getElementById('wa-tipo1').classList.remove('sel');
+};
+
+// ENVIAR WA — síncrono primero
+document.getElementById('btn-enviar-wa').onclick = function(){
+  if(!waPrac) return;
+  var al  = alumnos.find(function(a){ return a.id===waPrac.alumnoId; }) || {nombre:waPrac.alumnoNombre||'',telefono:''};
+  var nom = (al.nombre||'').split(' ')[0];
+  var prof = waPrac.profesorNombre || 'el profesor';
+  var msg = waTipo===1
+    ? 'Hola '+nom+', tienes cita con '+prof+' a las '+waPrac.hora+' en '+getNombre()+'. ¡Te esperamos!'
+    : 'Hola '+nom+', tu hora ha sido modificada. Nuevo horario: '+waPrac.hora+'. ¡Hasta pronto!';
+  var tel = (al.telefono||'').replace(/[^0-9+]/g,'');
+  if(!tel){ toast('Sin teléfono — añádelo en la ficha del alumno'); return; }
+  // Abrir WhatsApp Web SÍNCRONAMENTE (antes de cualquier await)
+  window.open('https://wa.me/'+tel.replace(/^\+/,'')+'?text='+encodeURIComponent(msg),'_blank');
+  // Intentar API 360dialog en segundo plano si hay clave
+  var wc = getWAConf();
+  if(wc.key){
+    fetch('https://waba.360dialog.io/v1/messages',{
+      method:'POST',
+      headers:{'D360-API-KEY':wc.key,'Content-Type':'application/json'},
+      body:JSON.stringify({messaging_product:'whatsapp',to:tel.replace(/^\+/,''),type:'text',text:{body:msg}})
+    }).then(function(r){ if(r.ok) toast('También enviado via API ✓'); })
+      .catch(function(){}); // fallback ya abierto
+  }
+  cerrarSheet('sh-wa');
+};
+
+// GCAL desde WA sheet
+document.getElementById('btn-gcal-prac').onclick = function(){
+  if(!waPrac) return;
+  var email = document.getElementById('gcal-email').value.trim();
+  var url = gcalUrl(
+    'Práctica '+waPrac.vehiculo+' · '+waPrac.alumnoNombre,
+    waPrac.fecha, waPrac.hora, waPrac.duracion||45, email
+  );
+  window.open(url,'_blank');
+  toast(email ? 'Abierto con invitación para '+email : 'Abierto en Google Calendar');
+};
+
+// ══════════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════════
+document.getElementById('btn-pass-cambiar').onclick = function(){
+  var p = document.getElementById('new-pass').value.trim();
+  if(p.length<3){ toast('Mínimo 3 caracteres'); return; }
+  localStorage.setItem(PASS_KEY,p); document.getElementById('new-pass').value=''; toast('Contraseña cambiada ✓');
+};
+document.getElementById('btn-wa-guardar').onclick = function(){
+  localStorage.setItem(WA_KEY,JSON.stringify({
+    key:document.getElementById('wa-key').value.trim(),
+    phone:document.getElementById('wa-phone').value.trim()
+  })); toast('WhatsApp guardado ✓');
+};
+document.getElementById('btn-guardar-nombre').onclick = function(){
+  var nombre  = document.getElementById('cfg-nombre').value.trim();
+  var carpeta = document.getElementById('cfg-carpeta').value.trim();
+  if(!nombre){ toast('Introduce el nombre de la autoescuela'); return; }
+  localStorage.setItem(NOMBRE_KEY, nombre);
+  if(carpeta) localStorage.setItem(FOLDER_KEY, carpeta);
+  setNombre(nombre);
+  // Actualizar versión en Config
+  var cv = document.getElementById('cfg-version');
+  if(cv) cv.textContent = nombre + ' · v7.0';
+  // Actualizar display carpeta
+  var od = document.getElementById('od-folder-display');
+  if(od) od.textContent = 'OneDrive/'+(carpeta||nombre)+'/';
+  toast('Configuración guardada ✓');
+};
+// Cargar valores guardados al abrir Config
+(function(){
+  var n = localStorage.getItem(NOMBRE_KEY);
+  var c = localStorage.getItem(FOLDER_KEY);
+  if(n){ var el=document.getElementById('cfg-nombre'); if(el) el.value=n; }
+  if(c){ var el2=document.getElementById('cfg-carpeta'); if(el2) el2.value=c; }
+  var od = document.getElementById('od-folder-display');
+  if(od) od.textContent = 'OneDrive/'+(c||n||'Autoescuela Diesel')+'/';
+})(); = function(){
+  var url = document.getElementById('logo-url-input').value.trim();
+  if(!url){ toast('Introduce una URL'); return; }
+  localStorage.setItem(LOGO_KEY,url); setLogos(url);
+  document.getElementById('logo-url-input').value=''; toast('Logo actualizado ✓');
+};
+document.getElementById('btn-logo-reset').onclick = function(){
+  localStorage.removeItem(LOGO_KEY); setLogos('icon.png'); toast('Logo restaurado ✓');
+};
+
+// ══════════════════════════════════════════════════════════════
+// ARRANQUE
+// ══════════════════════════════════════════════════════════════
+document.getElementById('fecha-label').textContent      = fmtD(currentDate);
+document.getElementById('fecha-prof-label').textContent = fmtD(profDate);
+
+// ══════════════════════════════════════════════════════════════
+// MÓDULO ONEDRIVE + EXCEL
+// ══════════════════════════════════════════════════════════════
+var AZURE_KEY   = 'diesel_azure_client_id';
+var EXPORT_KEY  = 'diesel_last_export';
+var OD_ACCOUNT  = 'diesel_od_account';
+var msalApp     = null;
+var odToken     = null;
+
+// ── Estado UI ─────────────────────────────────────────────────
+function updateODStatus(conectado, nombre){
+  var btn = document.getElementById('btn-od-connect');
+  var st  = document.getElementById('od-status');
+  var le  = document.getElementById('od-last-export');
+  if(btn) btn.style.display = rol==='admin' ? 'block' : 'none';
+  if(conectado){
+    if(btn) btn.textContent = '✓ OneDrive';
+    if(btn) btn.style.background = 'rgba(34,197,94,.2)';
+    if(st)  st.textContent = '✓ Conectado como ' + (nombre||'');
+  } else {
+    if(btn) btn.textContent = '📤 OneDrive';
+    if(btn) btn.style.background = 'rgba(255,255,255,.1)';
+    if(st)  st.textContent = 'No conectado';
+  }
+  var ultimo = localStorage.getItem(EXPORT_KEY);
+  if(le) le.textContent = ultimo ? 'Última exportación: ' + ultimo : 'Sin exportaciones previas';
+}
+
+// ── Inicializar MSAL ──────────────────────────────────────────
+function initMSAL(){
+  var clientId = localStorage.getItem(AZURE_KEY);
+  if(!clientId || !window.msal) return false;
+  try{
+    msalApp = new msal.PublicClientApplication({
+      auth:{
+        clientId: clientId,
+        authority: 'https://login.microsoftonline.com/common',
+        redirectUri: window.location.href.split('?')[0]
+      },
+      cache:{ cacheLocation:'localStorage', storeAuthStateInCookie:false }
+    });
+    // Intentar sesión silenciosa con cuenta guardada
+    var cuenta = localStorage.getItem(OD_ACCOUNT);
+    if(cuenta){
+      var accounts = msalApp.getAllAccounts();
+      if(accounts.length){
+        updateODStatus(true, accounts[0].name);
+        return true;
+      }
+    }
+    return true;
+  }catch(e){ console.error('MSAL init:', e); return false; }
+}
+
+// ── Conectar OneDrive ─────────────────────────────────────────
+async function conectarOneDrive(){
+  var clientId = document.getElementById('azure-client-id').value.trim()
+               || localStorage.getItem(AZURE_KEY);
+  if(!clientId){ toast('Introduce el Client ID de Azure'); return; }
+  if(!window.msal){ toast('MSAL no cargado — comprueba conexión'); return; }
+  localStorage.setItem(AZURE_KEY, clientId);
+  initMSAL();
+  try{
+    var resp = await msalApp.loginPopup({
+      scopes: ['Files.ReadWrite','User.Read']
+    });
+    odToken = resp.accessToken;
+    localStorage.setItem(OD_ACCOUNT, resp.account.username);
+    updateODStatus(true, resp.account.name);
+    toast('OneDrive conectado como ' + resp.account.name + ' ✓');
+  }catch(e){
+    toast('Error al conectar: ' + (e.message||e));
+    console.error('OD login:', e);
+  }
+}
+
+// ── Obtener token (silencioso o popup) ────────────────────────
+async function getODToken(){
+  if(!msalApp) initMSAL();
+  if(!msalApp) return null;
+  var accounts = msalApp.getAllAccounts();
+  if(!accounts.length) return null;
+  try{
+    var resp = await msalApp.acquireTokenSilent({
+      scopes:['Files.ReadWrite'], account: accounts[0]
+    });
+    return resp.accessToken;
+  }catch(e){
+    try{
+      var resp2 = await msalApp.acquireTokenPopup({scopes:['Files.ReadWrite']});
+      return resp2.accessToken;
+    }catch(e2){ return null; }
+  }
+}
+
+// ── Desconectar ───────────────────────────────────────────────
+function desconectarOD(){
+  localStorage.removeItem(OD_ACCOUNT);
+  msalApp = null; odToken = null;
+  updateODStatus(false);
+  toast('OneDrive desconectado');
+}
+
+// ── Subir archivo a OneDrive ──────────────────────────────────
+async function subirOneDrive(buffer, filename){
+  var token = await getODToken();
+  if(!token){ toast('No conectado a OneDrive'); return false; }
+  var GRAPH = 'https://graph.microsoft.com/v1.0';
+  var FOLDER = getCarpeta();
+  var YEAR   = new Date().getFullYear();
+  try{
+    // Crear carpeta año si no existe
+    await fetch(GRAPH+'/me/drive/root:/'+FOLDER+'/'+YEAR+':/children',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+      body: JSON.stringify({name:String(YEAR),folder:{},
+        '@microsoft.graph.conflictBehavior':'replace'})
+    });
+    // Subir Excel (≤4MB — upload simple)
+    var resp = await fetch(
+      GRAPH+'/me/drive/root:/'+FOLDER+'/'+YEAR+'/'+filename+':/content',
+      { method:'PUT',
+        headers:{
+          'Authorization':'Bearer '+token,
+          'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        },
+        body: new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
+      }
+    );
+    return resp.ok;
+  }catch(e){ console.error('OD upload:', e); return false; }
+}
+
+// ── Generar Excel completo con SheetJS ────────────────────────
+async function generarExcelCompleto(){
+  if(!window.XLSX){ toast('SheetJS no cargado'); return null; }
+
+  var wb = XLSX.utils.book_new();
+  var hoy = new Date();
+  var fechaStr = hoy.toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  var mes = hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+
+  // Función helper para cabeceras de hoja
+  function sheetHeader(ws, titulo, subtitulo, ncols){
+    var merge = [{s:{r:0,c:0}, e:{r:0,c:ncols-1}},
+                 {s:{r:1,c:0}, e:{r:1,c:ncols-1}}];
+    ws['A1'] = {v:titulo, t:'s', s:{font:{bold:true,sz:14,color:{rgb:'FFFFFF'}},
+      fill:{fgColor:{rgb:'0F2D6B'}},alignment:{horizontal:'center'}}};
+    ws['A2'] = {v:subtitulo, t:'s', s:{font:{sz:9,color:{rgb:'64748B'}},
+      alignment:{horizontal:'center'}}};
+    ws['!merges'] = (ws['!merges']||[]).concat(merge);
+  }
+  function addRow(ws, rIdx, vals, bolds, bg){
+    vals.forEach(function(v,ci){
+      var addr = XLSX.utils.encode_cell({r:rIdx,c:ci});
+      ws[addr] = {
+        v: v===null||v===undefined ? '' : v,
+        t: typeof v==='number' ? 'n' : 's',
+        s: {
+          font:{bold:!!(bolds&&bolds[ci]),sz:10,
+                color:{rgb: bg&&bg==='0F2D6B' ? 'FFFFFF' : '0F172A'}},
+          fill:{fgColor:{rgb: bg||'FFFFFF'}},
+          alignment:{horizontal:'center',vertical:'center'}
+        }
+      };
+    });
+  }
+
+  // ── HOJA 1: Dashboard ────────────────────────────────────────
+  var wsD = {};
+  wsD['!ref'] = 'A1:H40';
+  wsD['!cols'] = [{wch:18},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+
+  // Cargar prácticas del mes para stats
+  var fechasSnap = await db.collection('fechas_usadas').get();
+  var todasFechas = fechasSnap.docs.map(function(d){return d.id;});
+  var mesActual = dKey(hoy).slice(0,7); // YYYY-MM
+  var fechasMes = todasFechas.filter(function(f){return f.startsWith(mesActual);});
+
+  var pracMes = [];
+  if(fechasMes.length){
+    var resMes = await Promise.all(fechasMes.map(function(f){
+      return db.collection('practicas_'+f).get().then(function(s){
+        return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});
+      }).catch(function(){return [];});
+    }));
+    resMes.forEach(function(arr){arr.forEach(function(p){pracMes.push(p);});});
+  }
+
+  var firmMes = pracMes.filter(function(p){return p.firmada;}).length;
+  var pctFirm = pracMes.length ? Math.round(firmMes/pracMes.length*100) : 0;
+
+  addRow(wsD, 0, ['🏫 '+getNombre().toUpperCase()+' — DASHBOARD'], [true], '0F2D6B');
+  addRow(wsD, 1, ['Generado: '+fechaStr], [], 'DBEAFE');
+  addRow(wsD, 2, [], [], null);
+  // KPIs
+  addRow(wsD, 3, ['INDICADORES CLAVE','','','','','','',''], [true], '1A56DB');
+  addRow(wsD, 4, ['Alumnos activos', alumnos.length,'','Prácticas hoy',
+    window._pracHoy?window._pracHoy.length:0,'','% Firmadas mes', pctFirm+'%'], [true,true,false,true,true,false,true,true], 'DBEAFE');
+  addRow(wsD, 5, ['','','','Prácticas mes',pracMes.length,'','Firmadas mes',firmMes], [false,false,false,true,true,false,true,true], 'EFF6FF');
+
+  addRow(wsD, 7, ['PROFESORES','Prácticas Mes','Firmadas','% Firma'], [true,true,true,true], '1A56DB');
+  var ri = 8;
+  var profStats = {};
+  profesores.forEach(function(p){ profStats[p.id]={total:0,firmadas:0}; });
+  pracMes.forEach(function(p){
+    if(profStats[p.profesorId]){
+      profStats[p.profesorId].total++;
+      if(p.firmada) profStats[p.profesorId].firmadas++;
+    }
+  });
+  profesores.forEach(function(p){
+    var st = profStats[p.id]||{total:0,firmadas:0};
+    var pct2 = st.total ? Math.round(st.firmadas/st.total*100)+'%' : '—';
+    addRow(wsD, ri++, [p.nombre, st.total, st.firmadas, pct2], [true], ri%2===0?'F8FAFF':'FFFFFF');
+  });
+
+  ri++;
+  addRow(wsD, ri++, ['ALUMNOS — TOP 10 POR PRÁCTICAS'], [true], '1A56DB');
+  addRow(wsD, ri++, ['Alumno','Carnet','Prácticas mes'], [true,true,true], '1A56DB');
+  var alStats = {};
+  alumnos.forEach(function(a){ alStats[a.id]={nombre:a.nombre,carnet:a.carnet,total:0}; });
+  pracMes.forEach(function(p){ if(alStats[p.alumnoId]) alStats[p.alumnoId].total++; });
+  var alTop = Object.values(alStats).sort(function(a,b){return b.total-a.total;}).slice(0,10);
+  alTop.forEach(function(a){
+    addRow(wsD, ri++, [a.nombre, a.carnet, a.total], [true], ri%2===0?'F8FAFF':'FFFFFF');
+  });
+
+  wsD['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  XLSX.utils.book_append_sheet(wb, wsD, '📊 Dashboard');
+
+  // ── HOJA 2: Diario ────────────────────────────────────────────
+  var wsHoy = {};
+  wsHoy['!cols'] = [{wch:8},{wch:22},{wch:18},{wch:12},{wch:8},{wch:10},{wch:10}];
+  var pracHoy = window._pracHoy || [];
+  addRow(wsHoy, 0, ['PRÁCTICAS DEL DÍA — '+hoy.toLocaleDateString('es-ES')+' | '+getNombre()], [true], '0F2D6B');
+  addRow(wsHoy, 1, ['Total: '+pracHoy.length+' | Firmadas: '+pracHoy.filter(function(p){return p.firmada;}).length], [], 'DBEAFE');
+  addRow(wsHoy, 2, [], [], null);
+  addRow(wsHoy, 3, ['Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'], [true,true,true,true,true,true,true], '1A56DB');
+  pracHoy.forEach(function(p, idx){
+    addRow(wsHoy, 4+idx, [
+      p.hora, p.alumnoNombre, p.profesorNombre,
+      p.vehiculo, (p.duracion||45)+'min',
+      p.firmada ? 'Sí ✓' : 'No',
+      p.firmaTimestamp||'—'
+    ], [true], idx%2===0?'F8FAFF':'FFFFFF');
+  });
+  if(!pracHoy.length) addRow(wsHoy, 4, ['Sin prácticas programadas'], [], 'FEF9C3');
+  wsHoy['!ref'] = 'A1:G'+(5+pracHoy.length);
+  wsHoy['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}}];
+  XLSX.utils.book_append_sheet(wb, wsHoy, '📅 Diario');
+
+  // ── HOJA 3: Mensual ───────────────────────────────────────────
+  var wsMes = {};
+  wsMes['!cols'] = [{wch:22},{wch:20},{wch:12},{wch:10},{wch:12},{wch:10}];
+  addRow(wsMes, 0, ['RESUMEN MENSUAL — '+mes.toUpperCase()], [true], '0F2D6B');
+  addRow(wsMes, 1, ['Mes: '+mes+' | Total prácticas: '+pracMes.length], [], 'DBEAFE');
+  addRow(wsMes, 2, [], [], null);
+  addRow(wsMes, 3, ['Alumno','Profesor','Vehículo','Duración','Fecha','Firmada'], [true,true,true,true,true,true], '1A56DB');
+  pracMes.sort(function(a,b){return a.fecha.localeCompare(b.fecha)||a.hora.localeCompare(b.hora);})
+    .forEach(function(p, idx){
+      addRow(wsMes, 4+idx, [
+        p.alumnoNombre, p.profesorNombre, p.vehiculo,
+        (p.duracion||45)+'min', fmtFecha(p.fecha),
+        p.firmada ? 'Sí ✓' : 'No'
+      ], [true], idx%2===0?'F8FAFF':'FFFFFF');
+    });
+  wsMes['!ref'] = 'A1:F'+(5+pracMes.length);
+  wsMes['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}}];
+  XLSX.utils.book_append_sheet(wb, wsMes, '📆 Mensual');
+
+  // ── HOJA 4: Anual ─────────────────────────────────────────────
+  var wsAno = {};
+  wsAno['!cols'] = [{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+  addRow(wsAno, 0, ['RESUMEN ANUAL — '+hoy.getFullYear()], [true], '0F2D6B');
+  addRow(wsAno, 1, ['Año: '+hoy.getFullYear()], [], 'DBEAFE');
+  addRow(wsAno, 2, [], [], null);
+  addRow(wsAno, 3, ['Mes','Total','Firmadas','Pendientes','% Firma'], [true,true,true,true,true], '1A56DB');
+
+  // Agrupar prácticas por mes (todas las fechas disponibles)
+  var anoActual = String(hoy.getFullYear());
+  var fechasAno = todasFechas.filter(function(f){return f.startsWith(anoActual);});
+  var pracAno = [];
+  if(fechasAno.length){
+    var resAno = await Promise.all(fechasAno.map(function(f){
+      return db.collection('practicas_'+f).get().then(function(s){
+        return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});
+      }).catch(function(){return [];});
+    }));
+    resAno.forEach(function(arr){arr.forEach(function(p){pracAno.push(p);});});
+  }
+
+  var MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  MESES_ES.forEach(function(mes2, mi){
+    var mesKey = anoActual+'-'+p2(mi+1);
+    var pmeses = pracAno.filter(function(p){return p.fecha.startsWith(mesKey);});
+    var isFuture = mi > hoy.getMonth();
+    var tot2 = pmeses.length;
+    var firm2 = pmeses.filter(function(p){return p.firmada;}).length;
+    var pct3 = tot2 ? Math.round(firm2/tot2*100)+'%' : '—';
+    addRow(wsAno, 4+mi, isFuture
+      ? [mes2, '—', '—', '—', '—']
+      : [mes2, tot2, firm2, tot2-firm2, pct3],
+      [true], isFuture ? 'F1F5F9' : mi%2===0?'F8FAFF':'FFFFFF');
+  });
+  // Fila total
+  var totAno = pracAno.length;
+  var firmAno = pracAno.filter(function(p){return p.firmada;}).length;
+  addRow(wsAno, 16, ['TOTAL', totAno, firmAno, totAno-firmAno,
+    totAno ? Math.round(firmAno/totAno*100)+'%' : '—'], [true,true,true,true,true], '0F2D6B');
+
+  wsAno['!ref'] = 'A1:E17';
+  wsAno['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
+  XLSX.utils.book_append_sheet(wb, wsAno, '📈 Anual');
+
+  // ── HOJA 5: Alumnos ───────────────────────────────────────────
+  var wsAl = {};
+  wsAl['!cols'] = [{wch:24},{wch:10},{wch:14},{wch:12},{wch:14}];
+  addRow(wsAl, 0, ['LISTADO DE ALUMNOS'], [true], '0F2D6B');
+  addRow(wsAl, 1, ['Total: '+alumnos.length+' alumnos activos'], [], 'DBEAFE');
+  addRow(wsAl, 2, [], [], null);
+  addRow(wsAl, 3, ['Nombre','Carnet','Teléfono','Prácticas mes','Estado'], [true,true,true,true,true], '1A56DB');
+
+  var alPrac = {};
+  pracMes.forEach(function(p){ alPrac[p.alumnoId]=(alPrac[p.alumnoId]||0)+1; });
+  var alSort = [].concat(alumnos).sort(function(a,b){return (a.nombre||'').localeCompare(b.nombre||'');});
+  alSort.forEach(function(a, idx){
+    var cnt = alPrac[a.id]||0;
+    addRow(wsAl, 4+idx, [a.nombre, a.carnet, a.telefono||'—', cnt,
+      cnt>=4?'✓ Activo':cnt>0?'En proceso':'Sin práctica este mes'],
+      [true], idx%2===0?'F8FAFF':'FFFFFF');
+  });
+  wsAl['!ref'] = 'A1:E'+(5+alumnos.length);
+  wsAl['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
+  XLSX.utils.book_append_sheet(wb, wsAl, '👥 Alumnos');
+
+  // ── HOJA 6: Historial completo ────────────────────────────────
+  var wsHist = {};
+  wsHist['!cols'] = [{wch:12},{wch:8},{wch:22},{wch:18},{wch:10},{wch:8},{wch:10},{wch:10}];
+  addRow(wsHist, 0, ['HISTORIAL COMPLETO — '+hoy.getFullYear()], [true], '0F2D6B');
+  addRow(wsHist, 1, ['Total registros: '+pracAno.length], [], 'DBEAFE');
+  addRow(wsHist, 2, [], [], null);
+  addRow(wsHist, 3, ['Fecha','Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'],
+    [true,true,true,true,true,true,true,true], '1A56DB');
+  var histSort = [].concat(pracAno).sort(function(a,b){
+    return b.fecha.localeCompare(a.fecha)||a.hora.localeCompare(b.hora);
+  });
+  histSort.forEach(function(p, idx){
+    addRow(wsHist, 4+idx, [
+      fmtFecha(p.fecha), p.hora, p.alumnoNombre, p.profesorNombre,
+      p.vehiculo, (p.duracion||45)+'min',
+      p.firmada?'Sí ✓':'No', p.firmaTimestamp||'—'
+    ], [false,true], idx%2===0?'F8FAFF':'FFFFFF');
+  });
+  wsHist['!ref'] = 'A1:H'+(5+histSort.length);
+  wsHist['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
+  XLSX.utils.book_append_sheet(wb, wsHist, '📋 Historial');
+
+  return XLSX.write(wb, {bookType:'xlsx', type:'array'});
+}
+
+// ── Exportar a OneDrive ───────────────────────────────────────
+async function exportarExcelOD(silencioso){
+  var token = await getODToken();
+  if(!token){
+    if(!silencioso) toast('Conecta OneDrive primero en Config → ☁️ OneDrive');
+    return;
+  }
+  if(!window.XLSX){
+    if(!silencioso) toast('SheetJS no disponible — comprueba conexión a internet');
+    return;
+  }
+  var hoy = dKey(new Date());
+  var slug = getNombre().replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+  var filename = slug+'_'+hoy+'.xlsx';
+  sync('syncing');
+  if(!silencioso) toast('⏳ Generando Excel...');
+  try{
+    var buffer = await generarExcelCompleto();
+    if(!buffer){ sync('online'); return; }
+    var ok = await subirOneDrive(buffer, filename);
+    if(ok){
+      localStorage.setItem(EXPORT_KEY, hoy);
+      updateODStatus(true);
+      toast(silencioso
+        ? '📤 Copia diaria guardada en OneDrive ✓'
+        : '📤 Excel "'+filename+'" subido a OneDrive ✓');
+    } else {
+      toast('Error al subir a OneDrive');
+    }
+  }catch(e){
+    console.error('Export error:', e);
+    if(!silencioso) toast('Error: '+e.message);
+  }
+  sync('online');
+}
+
+// ── Auto-exportación diaria al hacer login ────────────────────
+function checkAutoExport(){
+  var ultimo = localStorage.getItem(EXPORT_KEY);
+  var hoy    = dKey(new Date());
+  if(ultimo !== hoy && rol==='admin'){
+    // Esperar 5 seg para que carguen los datos de Firebase
+    setTimeout(function(){ exportarExcelOD(true); }, 5000);
+  }
+  updateODStatus(!!localStorage.getItem(OD_ACCOUNT),
+    localStorage.getItem(OD_ACCOUNT)||'');
+}
+
+// ── Eventos Config ────────────────────────────────────────────
+document.getElementById('btn-azure-guardar').onclick = async function(){
+  var clientId = document.getElementById('azure-client-id').value.trim();
+  if(!clientId){ toast('Introduce el Client ID de Azure'); return; }
+  localStorage.setItem(AZURE_KEY, clientId);
+  await conectarOneDrive();
+};
+document.getElementById('btn-od-desconectar').onclick = desconectarOD;
+document.getElementById('btn-exportar-od').onclick = function(){ exportarExcelOD(false); };
+document.getElementById('btn-od-connect').onclick   = function(){ exportarExcelOD(false); };
+
+// ── Cargar Client ID guardado en Config ───────────────────────
+var _savedClientId = localStorage.getItem(AZURE_KEY);
+if(_savedClientId){
+  var _azEl = document.getElementById('azure-client-id');
+  if(_azEl) _azEl.value = _savedClientId;
+}
+
+// ── Hook en entrar() para auto-export y init MSAL ─────────────
+var _entrarOrig = entrar;
+entrar = function(){
+  _entrarOrig();
+  setTimeout(function(){
+    initMSAL();
+    checkAutoExport();
+  }, 1000);
+};
+</script>
+</body>
+</html>
