@@ -1767,7 +1767,7 @@ async function subirOneDrive(buffer, filename){
   var path   = FOLDER+'/'+YEAR+'/'+filename;
   try{
     var resp = await fetch(
-      GRAPH+'/me/drive/root:/'+path+':/content',
+      GRAPH+'/me/drive/root:/'+path+':/content?@microsoft.graph.conflictBehavior=replace',
       { method:'PUT',
         headers:{
           'Authorization':'Bearer '+token,
