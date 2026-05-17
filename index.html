@@ -677,6 +677,7 @@ function p2(n){ return String(n).padStart(2,'0'); }
 function dKey(d){ return d.toISOString().slice(0,10); }
 function fmtD(d){ return DIAS[d.getDay()]+' '+d.getDate()+' '+MESC[d.getMonth()]; }
 function fmtFecha(k){
+  if(!k) return '—';
   var p=k.split('-'); return parseInt(p[2])+' '+MESL[parseInt(p[1])-1]+' '+p[0];
 }
 function getPass(){ return localStorage.getItem(PASS_KEY)||'1234'; }
@@ -1787,6 +1788,8 @@ async function subirOneDrive(buffer, filename){
 // ── Generar Excel completo con SheetJS ────────────────────────
 async function generarExcelCompleto(){
   if(!window.XLSX){ toast('SheetJS no cargado'); return null; }
+  if(!alumnos) alumnos=[];
+  if(!profesores) profesores=[];
 
   var wb = XLSX.utils.book_new();
   var hoy = new Date();
@@ -1910,6 +1913,7 @@ async function generarExcelCompleto(){
   addRow(wsMes, 1, ['Mes: '+mes+' | Total prácticas: '+pracMes.length], [], 'DBEAFE');
   addRow(wsMes, 2, [], [], null);
   addRow(wsMes, 3, ['Alumno','Profesor','Vehículo','Duración','Fecha','Firmada'], [true,true,true,true,true,true], '1A56DB');
+  pracMes = pracMes.filter(function(p){return p&&p.fecha&&p.hora;});
   pracMes.sort(function(a,b){return (a.fecha||'').localeCompare(b.fecha||'')||(a.hora||'').localeCompare(b.hora||'');})
     .forEach(function(p, idx){
       addRow(wsMes, 4+idx, [
