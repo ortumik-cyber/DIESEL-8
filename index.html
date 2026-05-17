@@ -1788,234 +1788,326 @@ async function subirOneDrive(buffer, filename){
 // ── Generar Excel completo con SheetJS ────────────────────────
 async function generarExcelCompleto(){
   if(!window.XLSX){ toast('SheetJS no cargado'); return null; }
-  if(!alumnos) alumnos=[];
+  if(!alumnos)   alumnos=[];
   if(!profesores) profesores=[];
 
-  var wb = XLSX.utils.book_new();
+  var wb  = XLSX.utils.book_new();
   var hoy = new Date();
   var fechaStr = hoy.toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  var mes = hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
 
-  // Función helper para cabeceras de hoja
-  function sheetHeader(ws, titulo, subtitulo, ncols){
-    var merge = [{s:{r:0,c:0}, e:{r:0,c:ncols-1}},
-                 {s:{r:1,c:0}, e:{r:1,c:ncols-1}}];
-    ws['A1'] = {v:titulo, t:'s', s:{font:{bold:true,sz:14,color:{rgb:'FFFFFF'}},
-      fill:{fgColor:{rgb:'0F2D6B'}},alignment:{horizontal:'center'}}};
-    ws['A2'] = {v:subtitulo, t:'s', s:{font:{sz:9,color:{rgb:'64748B'}},
-      alignment:{horizontal:'center'}}};
-    ws['!merges'] = (ws['!merges']||[]).concat(merge);
+  // ── PALETA ───────────────────────────────────────────────────
+  var C={
+    NAVY:'0F2D6B', BLUE:'1A56DB', LBLUE:'DBEAFE', PALE:'EFF6FF',
+    WHITE:'FFFFFF', GRAY1:'F8FAFF', GRAY2:'E2E8F0',
+    GREEN:'166534', LGREEN:'DCFCE7', BGREEN:'86EFAC',
+    ORANGE:'92400E', LORNG:'FEF3C7', BORNG:'FDE68A',
+    RED:'991B1B', LRED:'FEE2E2',
+    NAVY2:'1E40AF', PURP:'4C1D95', LPURP:'EDE9FE'
+  };
+  // Estilos predefinidos
+  function S(bg,tx,bold,sz,center){
+    return {
+      fill:{patternType:'solid',fgColor:{rgb:bg||C.WHITE}},
+      font:{bold:!!bold,sz:sz||10,color:{rgb:tx||'0F172A'},name:'Calibri'},
+      alignment:{horizontal:center?'center':'left',vertical:'center',wrapText:false},
+      border:{
+        top:{style:'thin',color:{rgb:C.GRAY2}},
+        bottom:{style:'thin',color:{rgb:C.GRAY2}},
+        left:{style:'thin',color:{rgb:C.GRAY2}},
+        right:{style:'thin',color:{rgb:C.GRAY2}}
+      }
+    };
   }
-  function addRow(ws, rIdx, vals, bolds, bg){
-    vals.forEach(function(v,ci){
-      var addr = XLSX.utils.encode_cell({r:rIdx,c:ci});
-      ws[addr] = {
-        v: v===null||v===undefined ? '' : v,
-        t: typeof v==='number' ? 'n' : 's',
-        s: {
-          font:{bold:!!(bolds&&bolds[ci]),sz:10,
-                color:{rgb: bg&&bg==='0F2D6B' ? 'FFFFFF' : '0F172A'}},
-          fill:{fgColor:{rgb: bg||'FFFFFF'}},
-          alignment:{horizontal:'center',vertical:'center'}
-        }
-      };
+  // Helpers
+  function cel(ws,r,c,v,style){
+    var a=XLSX.utils.encode_cell({r:r,c:c});
+    ws[a]={v:v===null||v===undefined?'':v, t:typeof v==='number'?'n':'s', s:style||S()};
+    if(!ws['!ref']) ws['!ref']=a+':'+a;
+    var rng=XLSX.utils.decode_range(ws['!ref']), cc=XLSX.utils.decode_cell(a);
+    rng.s.r=Math.min(rng.s.r,cc.r); rng.s.c=Math.min(rng.s.c,cc.c);
+    rng.e.r=Math.max(rng.e.r,cc.r); rng.e.c=Math.max(rng.e.c,cc.c);
+    ws['!ref']=XLSX.utils.encode_range(rng);
+  }
+  function mrg(ws,r1,c1,r2,c2){ if(!ws['!merges'])ws['!merges']=[];ws['!merges'].push({s:{r:r1,c:c1},e:{r:r2,c:c2}}); }
+  function banner(ws,r,ncols,txt,sub){
+    for(var ci=0;ci<ncols;ci++) cel(ws,r,ci,'',S(C.NAVY,C.WHITE,true,14,true));
+    for(var ci2=0;ci2<ncols;ci2++) cel(ws,r+1,ci2,'',S(C.LBLUE,C.NAVY,false,9,true));
+    ws[XLSX.utils.encode_cell({r:r,c:0})].v=txt;
+    ws[XLSX.utils.encode_cell({r:r+1,c:0})].v=sub;
+    mrg(ws,r,0,r,ncols-1); mrg(ws,r+1,0,r+1,ncols-1);
+  }
+  function secHdr(ws,r,c,ncols,txt){
+    for(var ci=0;ci<ncols;ci++) cel(ws,r,c+ci,'',S(C.BLUE,C.WHITE,true,10,true));
+    ws[XLSX.utils.encode_cell({r:r,c:c})].v=txt;
+    if(ncols>1) mrg(ws,r,c,r,c+ncols-1);
+  }
+  function colHdr(ws,r,cols,startC){
+    cols.forEach(function(h,i){
+      cel(ws,r,startC+i,h,S(C.BLUE,C.WHITE,true,9,true));
     });
   }
-
-  // ── HOJA 1: Dashboard ────────────────────────────────────────
-  var wsD = {};
-  wsD['!ref'] = 'A1:H40';
-  wsD['!cols'] = [{wch:18},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
-
-  // Cargar prácticas del mes para stats
-  var fechasSnap = await db.collection('fechas_usadas').get();
-  var todasFechas = fechasSnap.docs.map(function(d){return d.id;});
-  var mesActual = dKey(hoy).slice(0,7); // YYYY-MM
-  var fechasMes = todasFechas.filter(function(f){return f.startsWith(mesActual);});
-
-  var pracMes = [];
-  if(fechasMes.length){
-    var resMes = await Promise.all(fechasMes.map(function(f){
-      return db.collection('practicas_'+f).get().then(function(s){
-        return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});
-      }).catch(function(){return [];});
-    }));
-    resMes.forEach(function(arr){arr.forEach(function(p){pracMes.push(p);});});
+  function vehStyle(veh){
+    return veh==='moto'?S(C.LORNG,C.ORANGE,true,9,true):
+           veh==='camion'?S(C.LGREEN,C.GREEN,true,9,true):
+           S(C.LBLUE,C.NAVY2,true,9,true);
   }
 
-  var firmMes = pracMes.filter(function(p){return p.firmada;}).length;
-  var pctFirm = pracMes.length ? Math.round(firmMes/pracMes.length*100) : 0;
+  // ── CARGAR DATOS ─────────────────────────────────────────────
+  var fechasSnap=await db.collection('fechas_usadas').get();
+  var todasFechas=fechasSnap.docs.map(function(d){return d.id;});
+  var mesActual=dKey(hoy).slice(0,7);
+  var fechasMes=todasFechas.filter(function(f){return f.startsWith(mesActual);});
+  var pracMes=[];
+  if(fechasMes.length){
+    var resMes=await Promise.all(fechasMes.map(function(f){
+      return db.collection('practicas_'+f).get()
+        .then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});})
+        .catch(function(){return [];});
+    }));
+    resMes.forEach(function(arr){arr.forEach(function(p){if(p&&p.fecha&&p.hora)pracMes.push(p);});});
+  }
+  pracMes.sort(function(a,b){return (a.fecha||'').localeCompare(b.fecha||'')||(a.hora||'').localeCompare(b.hora||'');});
+  var firmMes=pracMes.filter(function(p){return p.firmada;}).length;
+  var pctFirm=pracMes.length?Math.round(firmMes/pracMes.length*100):0;
 
-  addRow(wsD, 0, ['🏫 '+getNombre().toUpperCase()+' — DASHBOARD'], [true], '0F2D6B');
-  addRow(wsD, 1, ['Generado: '+fechaStr], [], 'DBEAFE');
-  addRow(wsD, 2, [], [], null);
-  // KPIs
-  addRow(wsD, 3, ['INDICADORES CLAVE','','','','','','',''], [true], '1A56DB');
-  addRow(wsD, 4, ['Alumnos activos', alumnos.length,'','Prácticas hoy',
-    window._pracHoy?window._pracHoy.length:0,'','% Firmadas mes', pctFirm+'%'], [true,true,false,true,true,false,true,true], 'DBEAFE');
-  addRow(wsD, 5, ['','','','Prácticas mes',pracMes.length,'','Firmadas mes',firmMes], [false,false,false,true,true,false,true,true], 'EFF6FF');
+  // ══════════════════════════════════════════════════════════════
+  // HOJA 1: 📊 DASHBOARD
+  // ══════════════════════════════════════════════════════════════
+  var wsD={};
+  wsD['!cols']=[{wch:2},{wch:16},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:11},{wch:12},{wch:2}];
 
-  addRow(wsD, 7, ['PROFESORES','Prácticas Mes','Firmadas','% Firma'], [true,true,true,true], '1A56DB');
-  var ri = 8;
-  var profStats = {};
-  profesores.forEach(function(p){ profStats[p.id]={total:0,firmadas:0}; });
+  banner(wsD,0,14,'🏫  '+getNombre().toUpperCase()+' — DASHBOARD','Generado: '+fechaStr);
+
+  // KPI boxes (fila 3-5)
+  var kpis=[
+    ['ALUMNOS',alumnos.length,'activos',C.LBLUE],
+    ['PRÁCTICAS HOY',(window._pracHoy||[]).length,'hoy',C.PALE],
+    ['FIRMADAS MES',firmMes,'de '+pracMes.length,C.LGREEN],
+    ['% FIRMA MES',pctFirm+'%','este mes',C.LORNG]
+  ];
+  var kpiCols=[1,4,7,10];
+  kpis.forEach(function(k,i){
+    var c=kpiCols[i];
+    for(var cc=c;cc<c+3;cc++){
+      cel(wsD,3,cc,'',S(k[3],C.NAVY,false,9,true));
+      cel(wsD,4,cc,'',{fill:{patternType:'solid',fgColor:{rgb:C.NAVY}},font:{bold:true,sz:22,color:{rgb:C.WHITE},name:'Calibri'},alignment:{horizontal:'center',vertical:'center'}});
+      cel(wsD,5,cc,'',S(k[3],'64748B',false,9,true));
+    }
+    wsD[XLSX.utils.encode_cell({r:3,c:c})].v=k[0];
+    wsD[XLSX.utils.encode_cell({r:4,c:c})].v=k[1];
+    wsD[XLSX.utils.encode_cell({r:5,c:c})].v=k[2];
+    mrg(wsD,3,c,3,c+2); mrg(wsD,4,c,4,c+2); mrg(wsD,5,c,5,c+2);
+  });
+
+  // Tabla profesores
+  secHdr(wsD,7,1,13,'👨‍🏫 PRÁCTICAS POR PROFESOR — MES A MES');
+  var mesesC=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','TOTAL'];
+  ['Profesor'].concat(mesesC).forEach(function(h,i){ cel(wsD,8,1+i,h,S(i===0?C.NAVY:C.BLUE,C.WHITE,true,9,true)); });
+
+  var profStats={};
+  var profMeses={};
+  profesores.forEach(function(p){
+    profStats[p.id]={total:0,firmadas:0};
+    profMeses[p.id]=Array(12).fill(0);
+  });
   pracMes.forEach(function(p){
     if(profStats[p.profesorId]){
       profStats[p.profesorId].total++;
       if(p.firmada) profStats[p.profesorId].firmadas++;
+      var mi=parseInt((p.fecha||'').slice(5,7),10)-1;
+      if(mi>=0&&mi<12) profMeses[p.profesorId][mi]++;
     }
   });
-  profesores.forEach(function(p){
-    var st = profStats[p.id]||{total:0,firmadas:0};
-    var pct2 = st.total ? Math.round(st.firmadas/st.total*100)+'%' : '—';
-    addRow(wsD, ri++, [p.nombre, st.total, st.firmadas, pct2], [true], ri%2===0?'F8FAFF':'FFFFFF');
+  var colProf=PROF_PAL||[];
+  profesores.forEach(function(p,ri){
+    var pc=colProf[ri%colProf.length]||{bg:'DBEAFE',tx:'1E40AF'};
+    var bg=ri%2===0?C.GRAY1:C.WHITE;
+    cel(wsD,9+ri,1,p.nombre,{fill:{patternType:'solid',fgColor:{rgb:pc.bg||bg}},font:{bold:true,sz:10,color:{rgb:pc.tx||C.NAVY},name:'Calibri'},alignment:{horizontal:'left',vertical:'center'}});
+    var tot=0;
+    for(var mi=0;mi<12;mi++){ var v=profMeses[p.id][mi]||0; tot+=v; cel(wsD,9+ri,2+mi,v,S(bg,v>0?C.NAVY:'94A3B8',v>0,9,true)); }
+    cel(wsD,9+ri,14,tot,S(C.LBLUE,C.NAVY,true,10,true));
   });
 
-  ri++;
-  addRow(wsD, ri++, ['ALUMNOS — TOP 10 POR PRÁCTICAS'], [true], '1A56DB');
-  addRow(wsD, ri++, ['Alumno','Carnet','Prácticas mes'], [true,true,true], '1A56DB');
-  var alStats = {};
-  alumnos.forEach(function(a){ alStats[a.id]={nombre:a.nombre,carnet:a.carnet,total:0}; });
-  pracMes.forEach(function(p){ if(alStats[p.alumnoId]) alStats[p.alumnoId].total++; });
-  var alTop = Object.values(alStats).sort(function(a,b){return b.total-a.total;}).slice(0,10);
-  alTop.forEach(function(a){
-    addRow(wsD, ri++, [a.nombre, a.carnet, a.total], [true], ri%2===0?'F8FAFF':'FFFFFF');
-  });
-
-  wsD['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
-  XLSX.utils.book_append_sheet(wb, wsD, '📊 Dashboard');
-
-  // ── HOJA 2: Diario ────────────────────────────────────────────
-  var wsHoy = {};
-  wsHoy['!cols'] = [{wch:8},{wch:22},{wch:18},{wch:12},{wch:8},{wch:10},{wch:10}];
-  var pracHoy = window._pracHoy || [];
-  addRow(wsHoy, 0, ['PRÁCTICAS DEL DÍA — '+hoy.toLocaleDateString('es-ES')+' | '+getNombre()], [true], '0F2D6B');
-  addRow(wsHoy, 1, ['Total: '+pracHoy.length+' | Firmadas: '+pracHoy.filter(function(p){return p.firmada;}).length], [], 'DBEAFE');
-  addRow(wsHoy, 2, [], [], null);
-  addRow(wsHoy, 3, ['Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'], [true,true,true,true,true,true,true], '1A56DB');
-  pracHoy.forEach(function(p, idx){
-    addRow(wsHoy, 4+idx, [
-      p.hora, p.alumnoNombre, p.profesorNombre,
-      p.vehiculo, (p.duracion||45)+'min',
-      p.firmada ? 'Sí ✓' : 'No',
-      p.firmaTimestamp||'—'
-    ], [true], idx%2===0?'F8FAFF':'FFFFFF');
-  });
-  if(!pracHoy.length) addRow(wsHoy, 4, ['Sin prácticas programadas'], [], 'FEF9C3');
-  wsHoy['!ref'] = 'A1:G'+(5+pracHoy.length);
-  wsHoy['!merges'] = [{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}}];
-  XLSX.utils.book_append_sheet(wb, wsHoy, '📅 Diario');
-
-  // ── HOJA 3: Mensual ───────────────────────────────────────────
-  var wsMes = {};
-  wsMes['!cols'] = [{wch:22},{wch:20},{wch:12},{wch:10},{wch:12},{wch:10}];
-  addRow(wsMes, 0, ['RESUMEN MENSUAL — '+mes.toUpperCase()], [true], '0F2D6B');
-  addRow(wsMes, 1, ['Mes: '+mes+' | Total prácticas: '+pracMes.length], [], 'DBEAFE');
-  addRow(wsMes, 2, [], [], null);
-  addRow(wsMes, 3, ['Alumno','Profesor','Vehículo','Duración','Fecha','Firmada'], [true,true,true,true,true,true], '1A56DB');
-  pracMes = pracMes.filter(function(p){return p&&p.fecha&&p.hora;});
-  pracMes.sort(function(a,b){return (a.fecha||'').localeCompare(b.fecha||'')||(a.hora||'').localeCompare(b.hora||'');})
-    .forEach(function(p, idx){
-      addRow(wsMes, 4+idx, [
-        p.alumnoNombre, p.profesorNombre, p.vehiculo,
-        (p.duracion||45)+'min', fmtFecha(p.fecha),
-        p.firmada ? 'Sí ✓' : 'No'
-      ], [true], idx%2===0?'F8FAFF':'FFFFFF');
-    });
-  wsMes['!ref'] = 'A1:F'+(5+pracMes.length);
-  wsMes['!merges'] = [{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}}];
-  XLSX.utils.book_append_sheet(wb, wsMes, '📆 Mensual');
-
-  // ── HOJA 4: Anual ─────────────────────────────────────────────
-  var wsAno = {};
-  wsAno['!cols'] = [{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
-  addRow(wsAno, 0, ['RESUMEN ANUAL — '+hoy.getFullYear()], [true], '0F2D6B');
-  addRow(wsAno, 1, ['Año: '+hoy.getFullYear()], [], 'DBEAFE');
-  addRow(wsAno, 2, [], [], null);
-  addRow(wsAno, 3, ['Mes','Total','Firmadas','Pendientes','% Firma'], [true,true,true,true,true], '1A56DB');
-
-  // Agrupar prácticas por mes (todas las fechas disponibles)
-  var anoActual = String(hoy.getFullYear());
-  var fechasAno = todasFechas.filter(function(f){return f.startsWith(anoActual);});
-  var pracAno = [];
-  if(fechasAno.length){
-    var resAno = await Promise.all(fechasAno.map(function(f){
-      return db.collection('practicas_'+f).get().then(function(s){
-        return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});
-      }).catch(function(){return [];});
-    }));
-    resAno.forEach(function(arr){arr.forEach(function(p){pracAno.push(p);});});
+  // Fila totales
+  var totRow=9+profesores.length;
+  cel(wsD,totRow,1,'TOTAL',S(C.NAVY,C.WHITE,true,10,true));
+  for(var mi=0;mi<12;mi++){
+    var tv=pracMes.filter(function(p){return parseInt((p.fecha||'').slice(5,7),10)-1===mi;}).length;
+    cel(wsD,totRow,2+mi,tv,S(C.NAVY,C.WHITE,true,9,true));
   }
+  cel(wsD,totRow,14,pracMes.length,S(C.NAVY,C.WHITE,true,10,true));
 
-  var MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  MESES_ES.forEach(function(mes2, mi){
-    var mesKey = anoActual+'-'+p2(mi+1);
-    var pmeses = pracAno.filter(function(p){return p.fecha.startsWith(mesKey);});
-    var isFuture = mi > hoy.getMonth();
-    var tot2 = pmeses.length;
-    var firm2 = pmeses.filter(function(p){return p.firmada;}).length;
-    var pct3 = tot2 ? Math.round(firm2/tot2*100)+'%' : '—';
-    addRow(wsAno, 4+mi, isFuture
-      ? [mes2, '—', '—', '—', '—']
-      : [mes2, tot2, firm2, tot2-firm2, pct3],
-      [true], isFuture ? 'F1F5F9' : mi%2===0?'F8FAFF':'FFFFFF');
-  });
-  // Fila total
-  var totAno = pracAno.length;
-  var firmAno = pracAno.filter(function(p){return p.firmada;}).length;
-  addRow(wsAno, 16, ['TOTAL', totAno, firmAno, totAno-firmAno,
-    totAno ? Math.round(firmAno/totAno*100)+'%' : '—'], [true,true,true,true,true], '0F2D6B');
-
-  wsAno['!ref'] = 'A1:E17';
-  wsAno['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
-  XLSX.utils.book_append_sheet(wb, wsAno, '📈 Anual');
-
-  // ── HOJA 5: Alumnos ───────────────────────────────────────────
-  var wsAl = {};
-  wsAl['!cols'] = [{wch:24},{wch:10},{wch:14},{wch:12},{wch:14}];
-  addRow(wsAl, 0, ['LISTADO DE ALUMNOS'], [true], '0F2D6B');
-  addRow(wsAl, 1, ['Total: '+alumnos.length+' alumnos activos'], [], 'DBEAFE');
-  addRow(wsAl, 2, [], [], null);
-  addRow(wsAl, 3, ['Nombre','Carnet','Teléfono','Prácticas mes','Estado'], [true,true,true,true,true], '1A56DB');
-
-  var alPrac = {};
+  // Alumnos top
+  var startAl=totRow+2;
+  secHdr(wsD,startAl,1,4,'👥 TOP ALUMNOS DEL MES');
+  ['Alumno','Carnet','Prácticas','Estado'].forEach(function(h,i){ cel(wsD,startAl+1,1+i,h,S(C.BLUE,C.WHITE,true,9,true)); });
+  var alPrac={};
   pracMes.forEach(function(p){ alPrac[p.alumnoId]=(alPrac[p.alumnoId]||0)+1; });
-  var alSort = [].concat(alumnos).sort(function(a,b){return (a.nombre||'').localeCompare(b.nombre||'');});
-  alSort.forEach(function(a, idx){
-    var cnt = alPrac[a.id]||0;
-    addRow(wsAl, 4+idx, [a.nombre, a.carnet, a.telefono||'—', cnt,
-      cnt>=4?'✓ Activo':cnt>0?'En proceso':'Sin práctica este mes'],
-      [true], idx%2===0?'F8FAFF':'FFFFFF');
+  var alTop=[].concat(alumnos).sort(function(a,b){return (alPrac[b.id]||0)-(alPrac[a.id]||0);}).slice(0,8);
+  alTop.forEach(function(a,ri){
+    var bg=ri%2===0?C.GRAY1:C.WHITE; var cnt=alPrac[a.id]||0;
+    cel(wsD,startAl+2+ri,1,a.nombre,S(bg,'0F172A',true,10,false));
+    cel(wsD,startAl+2+ri,2,a.carnet,S(C.LBLUE,C.NAVY2,true,9,true));
+    cel(wsD,startAl+2+ri,3,cnt,S(bg,C.NAVY,cnt>0,10,true));
+    var est=cnt>=4?'✓ Activo':cnt>0?'En proceso':'Sin prácticas';
+    var ebg=cnt>=4?C.LGREEN:cnt>0?C.LORNG:C.GRAY1;
+    var etx=cnt>=4?C.GREEN:cnt>0?C.ORANGE:'64748B';
+    cel(wsD,startAl+2+ri,4,est,S(ebg,etx,true,9,true));
   });
-  wsAl['!ref'] = 'A1:E'+(5+alumnos.length);
-  wsAl['!merges'] = [{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}}];
-  XLSX.utils.book_append_sheet(wb, wsAl, '👥 Alumnos');
 
-  // ── HOJA 6: Historial completo ────────────────────────────────
-  var wsHist = {};
-  wsHist['!cols'] = [{wch:12},{wch:8},{wch:22},{wch:18},{wch:10},{wch:8},{wch:10},{wch:10}];
-  addRow(wsHist, 0, ['HISTORIAL COMPLETO — '+hoy.getFullYear()], [true], '0F2D6B');
-  addRow(wsHist, 1, ['Total registros: '+pracAno.length], [], 'DBEAFE');
-  addRow(wsHist, 2, [], [], null);
-  addRow(wsHist, 3, ['Fecha','Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'],
-    [true,true,true,true,true,true,true,true], '1A56DB');
-  var histSort = [].concat(pracAno).sort(function(a,b){
+  // Vehículos
+  secHdr(wsD,startAl,7,4,'🚗 DISTRIBUCIÓN VEHÍCULOS');
+  ['Vehículo','Prácticas','%','Visual'].forEach(function(h,i){ cel(wsD,startAl+1,7+i,h,S(C.BLUE,C.WHITE,true,9,true)); });
+  var vehs=[['🚗 Coche','coche',C.LBLUE,C.NAVY2],['🏍️ Moto','moto',C.LORNG,C.ORANGE],['🚛 Camión','camion',C.LGREEN,C.GREEN]];
+  var totV=pracMes.length||1;
+  vehs.forEach(function(v,ri){
+    var cnt=pracMes.filter(function(p){return p.vehiculo===v[1];}).length;
+    var pct=Math.round(cnt/totV*100);
+    cel(wsD,startAl+2+ri,7,v[0],S(v[2],v[3],true,10,false));
+    cel(wsD,startAl+2+ri,8,cnt,S(v[2],v[3],true,10,true));
+    cel(wsD,startAl+2+ri,9,pct+'%',S(v[2],v[3],true,10,true));
+    cel(wsD,startAl+2+ri,10,'█'.repeat(Math.round(pct/5)),S(v[2],v[3],false,8,false));
+  });
+
+  XLSX.utils.book_append_sheet(wb,wsD,'📊 Dashboard');
+
+  // ══════════════════════════════════════════════════════════════
+  // HOJA 2: 📅 DIARIO
+  // ══════════════════════════════════════════════════════════════
+  var wsHoy={};
+  wsHoy['!cols']=[{wch:8},{wch:22},{wch:18},{wch:12},{wch:8},{wch:10},{wch:10}];
+  var pracHoy=window._pracHoy||[];
+  banner(wsHoy,0,7,'📅 PRÁCTICAS DEL DÍA — '+hoy.toLocaleDateString('es-ES').toUpperCase(),
+    'Total: '+pracHoy.length+' · Firmadas: '+pracHoy.filter(function(p){return p.firmada;}).length+' · Pendientes: '+pracHoy.filter(function(p){return !p.firmada;}).length);
+  colHdr(wsHoy,2,['Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'],0);
+  pracHoy.forEach(function(p,ri){
+    var bg=ri%2===0?C.GRAY1:C.WHITE;
+    var vs=vehStyle(p.vehiculo||'coche');
+    cel(wsHoy,3+ri,0,p.hora||'',{fill:{patternType:'solid',fgColor:{rgb:C.NAVY}},font:{bold:true,sz:11,color:{rgb:C.WHITE},name:'Calibri'},alignment:{horizontal:'center',vertical:'center'}});
+    cel(wsHoy,3+ri,1,p.alumnoNombre||'',S(bg,'0F172A',true,10,false));
+    cel(wsHoy,3+ri,2,p.profesorNombre||'',S(bg,'374151',false,10,false));
+    cel(wsHoy,3+ri,3,(p.vehiculo==='moto'?'🏍️ ':p.vehiculo==='camion'?'🚛 ':'🚗 ')+(p.vehiculo||'coche'),vs);
+    cel(wsHoy,3+ri,4,(p.duracion||45)+"'",S(bg,'374151',false,9,true));
+    var fbg=p.firmada?C.LGREEN:C.LORNG; var ftx=p.firmada?C.GREEN:C.ORANGE;
+    cel(wsHoy,3+ri,5,p.firmada?'✓ Firmada':'Pendiente',S(fbg,ftx,true,9,true));
+    cel(wsHoy,3+ri,6,p.firmaTimestamp||'—',S(bg,'64748B',false,9,true));
+  });
+  if(!pracHoy.length) cel(wsHoy,3,0,'Sin prácticas programadas hoy',S(C.LORNG,C.ORANGE,true,10,false));
+  XLSX.utils.book_append_sheet(wb,wsHoy,'📅 Diario');
+
+  // ══════════════════════════════════════════════════════════════
+  // HOJA 3: 📆 MENSUAL
+  // ══════════════════════════════════════════════════════════════
+  var wsMes={};
+  wsMes['!cols']=[{wch:22},{wch:18},{wch:12},{wch:10},{wch:12},{wch:10}];
+  banner(wsMes,0,6,'📆 RESUMEN MENSUAL — '+hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'}).toUpperCase(),
+    'Total prácticas: '+pracMes.length+' · Firmadas: '+firmMes+' · % Firma: '+pctFirm+'%');
+  colHdr(wsMes,2,['Alumno','Profesor','Vehículo','Duración','Fecha','Firmada'],0);
+  pracMes.forEach(function(p,ri){
+    var bg=ri%2===0?C.GRAY1:C.WHITE;
+    cel(wsMes,3+ri,0,p.alumnoNombre||'',S(bg,'0F172A',true,10,false));
+    cel(wsMes,3+ri,1,p.profesorNombre||'',S(bg,'374151',false,10,false));
+    cel(wsMes,3+ri,2,(p.vehiculo==='moto'?'🏍️ ':p.vehiculo==='camion'?'🚛 ':'🚗 ')+(p.vehiculo||'coche'),vehStyle(p.vehiculo||'coche'));
+    cel(wsMes,3+ri,3,(p.duracion||45)+"'",S(bg,'374151',false,9,true));
+    cel(wsMes,3+ri,4,fmtFecha(p.fecha),S(bg,'374151',false,9,true));
+    var fbg=p.firmada?C.LGREEN:C.LORNG; var ftx=p.firmada?C.GREEN:C.ORANGE;
+    cel(wsMes,3+ri,5,p.firmada?'✓ Sí':'No',S(fbg,ftx,true,9,true));
+  });
+  if(!pracMes.length) cel(wsMes,3,0,'Sin prácticas este mes',S(C.LORNG,C.ORANGE,true,10,false));
+  XLSX.utils.book_append_sheet(wb,wsMes,'📆 Mensual');
+
+  // ══════════════════════════════════════════════════════════════
+  // HOJA 4: 📈 ANUAL
+  // ══════════════════════════════════════════════════════════════
+  var wsAno={};
+  wsAno['!cols']=[{wch:14},{wch:10},{wch:10},{wch:12},{wch:10}];
+  var anoActual=String(hoy.getFullYear());
+  var fechasAno=todasFechas.filter(function(f){return f.startsWith(anoActual);});
+  var pracAno=[];
+  if(fechasAno.length){
+    var resAno=await Promise.all(fechasAno.map(function(f){
+      return db.collection('practicas_'+f).get()
+        .then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});})
+        .catch(function(){return [];});
+    }));
+    resAno.forEach(function(arr){arr.forEach(function(p){if(p&&p.fecha)pracAno.push(p);});});
+  }
+  banner(wsAno,0,5,'📈 RESUMEN ANUAL — '+anoActual,'Total acumulado: '+pracAno.length+' prácticas');
+  colHdr(wsAno,2,['Mes','Total','Firmadas','Pendientes','% Firma'],0);
+  var MESES_ES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var totAno=0; var firmAno=0;
+  MESES_ES.forEach(function(mes2,mi){
+    var mesKey=anoActual+'-'+p2(mi+1);
+    var pm=pracAno.filter(function(p){return (p.fecha||'').startsWith(mesKey);});
+    var isFuture=mi>hoy.getMonth();
+    var bg=isFuture?'F1F5F9':mi%2===0?C.GRAY1:C.WHITE;
+    var tx=isFuture?'94A3B8':'0F172A';
+    var tot2=pm.length; var firm2=pm.filter(function(p){return p.firmada;}).length;
+    if(!isFuture){totAno+=tot2;firmAno+=firm2;}
+    cel(wsAno,3+mi,0,mes2,S(bg,isFuture?'94A3B8':C.NAVY,!isFuture,10,false));
+    cel(wsAno,3+mi,1,isFuture?'—':tot2,S(bg,tx,!isFuture&&tot2>0,10,true));
+    cel(wsAno,3+mi,2,isFuture?'—':firm2,S(isFuture?bg:C.LGREEN,isFuture?tx:C.GREEN,!isFuture&&firm2>0,10,true));
+    cel(wsAno,3+mi,3,isFuture?'—':tot2-firm2,S(isFuture?bg:tot2-firm2>0?C.LORNG:bg,isFuture?tx:tot2-firm2>0?C.ORANGE:'94A3B8',false,10,true));
+    cel(wsAno,3+mi,4,isFuture?'—':(tot2?Math.round(firm2/tot2*100)+'%':'—'),S(bg,isFuture?'94A3B8':C.BLUE,!isFuture&&tot2>0,9,true));
+  });
+  // Total
+  cel(wsAno,15,0,'TOTAL '+anoActual,S(C.NAVY,C.WHITE,true,10,false));
+  cel(wsAno,15,1,totAno,S(C.NAVY,C.WHITE,true,11,true));
+  cel(wsAno,15,2,firmAno,S(C.LGREEN,C.GREEN,true,11,true));
+  cel(wsAno,15,3,totAno-firmAno,S(C.LORNG,C.ORANGE,true,11,true));
+  cel(wsAno,15,4,totAno?Math.round(firmAno/totAno*100)+'%':'—',S(C.LBLUE,C.NAVY,true,11,true));
+  XLSX.utils.book_append_sheet(wb,wsAno,'📈 Anual');
+
+  // ══════════════════════════════════════════════════════════════
+  // HOJA 5: 👥 ALUMNOS
+  // ══════════════════════════════════════════════════════════════
+  var wsAl={};
+  wsAl['!cols']=[{wch:24},{wch:10},{wch:16},{wch:12},{wch:14}];
+  banner(wsAl,0,5,'👥 LISTADO DE ALUMNOS','Total: '+alumnos.length+' alumnos activos');
+  colHdr(wsAl,2,['Nombre','Carnet','Teléfono','Práct. mes','Estado'],0);
+  var alPracM={};
+  pracMes.forEach(function(p){alPracM[p.alumnoId]=(alPracM[p.alumnoId]||0)+1;});
+  var alSort=[].concat(alumnos).sort(function(a,b){return (a.nombre||'').localeCompare(b.nombre||'');});
+  alSort.forEach(function(a,ri){
+    var bg=ri%2===0?C.GRAY1:C.WHITE; var cnt=alPracM[a.id]||0;
+    cel(wsAl,3+ri,0,a.nombre||'',S(bg,'0F172A',true,10,false));
+    cel(wsAl,3+ri,1,a.carnet||'B',S(C.LBLUE,C.NAVY2,true,9,true));
+    cel(wsAl,3+ri,2,a.telefono||'—',S(bg,'374151',false,10,false));
+    cel(wsAl,3+ri,3,cnt,S(bg,cnt>0?C.NAVY:'94A3B8',cnt>0,10,true));
+    var est=cnt>=4?'✓ Activo':cnt>0?'En proceso':'Sin práctica';
+    var ebg=cnt>=4?C.LGREEN:cnt>0?C.LORNG:C.GRAY1;
+    var etx=cnt>=4?C.GREEN:cnt>0?C.ORANGE:'64748B';
+    cel(wsAl,3+ri,4,est,S(ebg,etx,true,9,true));
+  });
+  XLSX.utils.book_append_sheet(wb,wsAl,'👥 Alumnos');
+
+  // ══════════════════════════════════════════════════════════════
+  // HOJA 6: 📋 HISTORIAL
+  // ══════════════════════════════════════════════════════════════
+  var wsHist={};
+  wsHist['!cols']=[{wch:14},{wch:8},{wch:22},{wch:18},{wch:12},{wch:8},{wch:10},{wch:10}];
+  banner(wsHist,0,8,'📋 HISTORIAL COMPLETO — '+anoActual,'Total registros: '+pracAno.length);
+  colHdr(wsHist,2,['Fecha','Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'],0);
+  var histSort=[].concat(pracAno).sort(function(a,b){
     return (b.fecha||'').localeCompare(a.fecha||'')||(a.hora||'').localeCompare(b.hora||'');
   });
-  histSort.forEach(function(p, idx){
-    addRow(wsHist, 4+idx, [
-      fmtFecha(p.fecha), p.hora, p.alumnoNombre, p.profesorNombre,
-      p.vehiculo, (p.duracion||45)+'min',
-      p.firmada?'Sí ✓':'No', p.firmaTimestamp||'—'
-    ], [false,true], idx%2===0?'F8FAFF':'FFFFFF');
+  histSort.forEach(function(p,ri){
+    var bg=ri%2===0?C.GRAY1:C.WHITE;
+    cel(wsHist,3+ri,0,fmtFecha(p.fecha),S(bg,'374151',false,9,true));
+    cel(wsHist,3+ri,1,p.hora||'',S(C.LBLUE,C.NAVY,true,10,true));
+    cel(wsHist,3+ri,2,p.alumnoNombre||'',S(bg,'0F172A',true,10,false));
+    cel(wsHist,3+ri,3,p.profesorNombre||'',S(bg,'374151',false,10,false));
+    cel(wsHist,3+ri,4,(p.vehiculo==='moto'?'🏍️ ':p.vehiculo==='camion'?'🚛 ':'🚗 ')+(p.vehiculo||'coche'),vehStyle(p.vehiculo||'coche'));
+    cel(wsHist,3+ri,5,(p.duracion||45)+"'",S(bg,'374151',false,9,true));
+    var fbg=p.firmada?C.LGREEN:C.GRAY1; var ftx=p.firmada?C.GREEN:'64748B';
+    cel(wsHist,3+ri,6,p.firmada?'✓ Sí':'—',S(fbg,ftx,true,9,true));
+    cel(wsHist,3+ri,7,p.firmaTimestamp||'—',S(bg,'374151',false,9,true));
   });
-  wsHist['!ref'] = 'A1:H'+(5+histSort.length);
-  wsHist['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
-  XLSX.utils.book_append_sheet(wb, wsHist, '📋 Historial');
+  XLSX.utils.book_append_sheet(wb,wsHist,'📋 Historial');
 
-  return XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  return XLSX.write(wb,{bookType:'xlsx',type:'array',cellStyles:true});
 }
+
 
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
