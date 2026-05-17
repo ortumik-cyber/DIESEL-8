@@ -248,9 +248,23 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       <button class="role-btn sel" id="role-admin"><span class="ico">🗂️</span><span class="lbl">Administrativo</span></button>
       <button class="role-btn" id="role-prof"><span class="ico">👨‍🏫</span><span class="lbl">Profesor</span></button>
     </div>
+    <!-- Admin password -->
     <div id="pass-wrap">
       <label>Contraseña</label>
       <input type="password" id="login-pass" placeholder="••••" maxlength="30">
+    </div>
+    <!-- Profesor selector + password -->
+    <div id="prof-login-wrap" style="display:none">
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:700;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.7px;color:#374151">Selecciona tu nombre</label>
+        <select id="login-prof-select" style="width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:14px;font-family:inherit;color:#0f172a;background:#fff">
+          <option value="">— Cargando profesores... —</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:.7px;color:#374151">Contraseña</label>
+        <input type="password" id="login-pass-prof" placeholder="••••" maxlength="30" style="width:100%;padding:12px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:22px;letter-spacing:8px;text-align:center;font-family:inherit;color:#0f2d6b">
+      </div>
     </div>
     <div id="login-error">Contraseña incorrecta</div>
     <button id="login-btn">Entrar</button>
@@ -538,8 +552,8 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
     <div class="sheet-body">
       <div class="hist-stats" id="hist-stats"></div>
       <div id="hist-rows"></div>
-      <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn-prim" style="flex:1" id="btn-csv">📊 Exportar CSV</button>
+      <div id="hist-export-btns" style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn-prim" style="flex:1" id="btn-csv">📊 Exportar Excel</button>
         <button class="btn-sec" style="flex:1" id="btn-hist-gcal">📅 Google Cal</button>
       </div>
     </div>
@@ -572,6 +586,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
           <option value="camion">🚛 Camión</option><option value="todos">🚗🏍️🚛 Todos</option>
         </select>
       </div>
+      <div class="fg"><label>Contraseña del profesor</label><input type="password" id="pr-pass" placeholder="Contraseña para acceder" maxlength="30"></div>
     </div>
     <div class="sheet-btns">
       <button class="btn-sec" data-close="sh-prof">Cancelar</button>
@@ -743,17 +758,35 @@ document.getElementById('btn-cfm-ok').onclick = async function(){
 // ══════════════════════════════════════════════════════════════
 // LOGIN
 // ══════════════════════════════════════════════════════════════
+var _profesoresLogin = [];
+async function cargarProfesoresLogin(){
+  var sel = document.getElementById('login-prof-select');
+  sel.innerHTML = '<option value="">— Cargando... —</option>';
+  try{
+    var snap = await db.collection('profesores').get();
+    _profesoresLogin = snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+    _profesoresLogin.sort(function(a,b){return(a.nombre||'').localeCompare(b.nombre||'');});
+    sel.innerHTML = '<option value="">— Selecciona tu nombre —</option>'+
+      _profesoresLogin.map(function(p){return '<option value="'+p.id+'">'+p.nombre+'</option>';}).join('');
+  }catch(e){
+    sel.innerHTML = '<option value="">Error al cargar profesores</option>';
+  }
+}
 document.getElementById('role-admin').onclick = function(){
   document.getElementById('role-admin').classList.add('sel');
   document.getElementById('role-prof').classList.remove('sel');
   document.getElementById('pass-wrap').style.display='block';
+  document.getElementById('prof-login-wrap').style.display='none';
 };
 document.getElementById('role-prof').onclick = function(){
   document.getElementById('role-prof').classList.add('sel');
   document.getElementById('role-admin').classList.remove('sel');
   document.getElementById('pass-wrap').style.display='none';
+  document.getElementById('prof-login-wrap').style.display='block';
+  cargarProfesoresLogin();
 };
 document.getElementById('login-pass').onkeydown = function(e){ if(e.key==='Enter') entrar(); };
+document.getElementById('login-pass-prof').onkeydown = function(e){ if(e.key==='Enter') entrar(); };
 document.getElementById('login-btn').onclick = entrar;
 
 function entrar(){
@@ -761,6 +794,16 @@ function entrar(){
   if(esAdmin){
     var p = document.getElementById('login-pass').value;
     if(p !== getPass()){ document.getElementById('login-error').style.display='block'; return; }
+  } else {
+    // Verificar contraseña del profesor
+    var profId = document.getElementById('login-prof-select').value;
+    var profPass = document.getElementById('login-pass-prof').value;
+    if(!profId){ document.getElementById('login-error').style.display='block'; return; }
+    var profData = _profesoresLogin.find(function(p){ return p.id===profId; });
+    if(!profData || (profData.password && profData.password !== profPass)){
+      document.getElementById('login-error').style.display='block'; return;
+    }
+    profSel = profId; // Auto-seleccionar este profesor al entrar
   }
   rol = esAdmin ? 'admin' : 'profesor';
   document.getElementById('login-screen').classList.add('hidden');
@@ -795,10 +838,12 @@ document.getElementById('btn-salir').onclick = function(){
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-pass').value='';
+  document.getElementById('login-pass-prof').value='';
   document.getElementById('login-error').style.display='none';
   document.getElementById('role-admin').classList.add('sel');
   document.getElementById('role-prof').classList.remove('sel');
   document.getElementById('pass-wrap').style.display='block';
+  document.getElementById('prof-login-wrap').style.display='none';
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -1106,14 +1151,20 @@ function renderProfesores(){
   });
 }
 
-document.getElementById('btn-nuevo-prof').onclick = function(){ abrirSheet('sh-prof'); };
+document.getElementById('btn-nuevo-prof').onclick = function(){
+  document.getElementById('pr-nom').value='';
+  document.getElementById('pr-tel').value='';
+  document.getElementById('pr-pass').value='';
+  abrirSheet('sh-prof');
+};
 document.getElementById('btn-guardar-prof').onclick = async function(){
   var nombre = document.getElementById('pr-nom').value.trim();
   if(!nombre){ toast('Introduce el nombre'); return; }
   var datos = {
     nombre:nombre,
     telefono:document.getElementById('pr-tel').value.trim(),
-    especialidad:document.getElementById('pr-esp').value
+    especialidad:document.getElementById('pr-esp').value,
+    password:document.getElementById('pr-pass').value.trim()||'1234'
   };
   sync('syncing');
   try{
@@ -1257,6 +1308,9 @@ document.getElementById('btn-guardar-alumno').onclick = async function(){
 // HISTORIAL — carga paralela con filtro
 // ══════════════════════════════════════════════════════════════
 async function abrirHistorial(alId){
+  // Mostrar/ocultar botones de exportar según rol
+  var exportBtns = document.getElementById('hist-export-btns');
+  if(exportBtns) exportBtns.style.display = rol==='admin' ? 'flex' : 'none';
   var al = alumnos.find(function(a){ return a.id===alId; }); if(!al) return;
   cerrarSheet('sh-ficha');
   fichaAlId = alId;
@@ -1646,14 +1700,24 @@ async function conectarOneDrive(){
   localStorage.setItem(AZURE_KEY, clientId);
   initMSAL();
   try{
-    var resp = await msalApp.loginPopup({
-      scopes: ['Files.ReadWrite','User.Read']
-    });
-    window._odToken = resp.accessToken;
-    odToken = resp.accessToken;
-    localStorage.setItem(OD_ACCOUNT, resp.account.username);
-    updateODStatus(true, resp.account.name);
-    toast('OneDrive conectado como ' + resp.account.name + ' ✓');
+    // Paso 1: autenticación
+    var loginResp = await msalApp.loginPopup({ scopes:['User.Read'] });
+    // Paso 2: obtener token para OneDrive
+    var tokenResp;
+    try{
+      tokenResp = await msalApp.acquireTokenSilent({
+        scopes:['Files.ReadWrite'], account: loginResp.account
+      });
+    }catch(e2){
+      tokenResp = await msalApp.acquireTokenPopup({
+        scopes:['Files.ReadWrite'], account: loginResp.account
+      });
+    }
+    window._odToken = tokenResp.accessToken;
+    odToken = tokenResp.accessToken;
+    localStorage.setItem(OD_ACCOUNT, loginResp.account.username);
+    updateODStatus(true, loginResp.account.name);
+    toast('OneDrive conectado como ' + loginResp.account.name + ' ✓');
   }catch(e){
     toast('Error al conectar: ' + (e.message||e));
     console.error('OD login:', e);
