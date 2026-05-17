@@ -1332,7 +1332,7 @@ async function abrirHistorial(alId){
     }));
     histTodas = [];
     resultados.forEach(function(arr){ arr.forEach(function(p){ histTodas.push(p); }); });
-    histTodas.sort(function(a,b){ return b.fecha.localeCompare(a.fecha)||a.hora.localeCompare(b.hora); });
+    histTodas.sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||'')||(a.hora||'').localeCompare(b.hora||''); });
     renderHistorial(al); sync('online');
   }catch(e){ sync(''); toast('Error historial: '+e.message); }
 }
@@ -1667,60 +1667,54 @@ function updateODStatus(conectado, nombre){
 // ── Inicializar MSAL ──────────────────────────────────────────
 function initMSAL(){
   var clientId = getAzureClientId();
+  if(!window.msal) return false;
   try{
     msalApp = new msal.PublicClientApplication({
       auth:{
         clientId: clientId,
         authority: 'https://login.microsoftonline.com/common',
-        redirectUri: window.location.href.split('?')[0]
+        redirectUri: 'https://ortumik-cyber.github.io/DIESEL-8/'
       },
       cache:{ cacheLocation:'localStorage', storeAuthStateInCookie:false }
     });
-    // Intentar sesión silenciosa con cuenta guardada
-    var cuenta = localStorage.getItem(OD_ACCOUNT);
-    if(cuenta){
-      var accounts = msalApp.getAllAccounts();
-      if(accounts.length){
-        updateODStatus(true, accounts[0].name);
-        return true;
-      }
-    }
     return true;
   }catch(e){ console.error('MSAL init:', e); return false; }
 }
 
 // ── Conectar OneDrive ─────────────────────────────────────────
 async function conectarOneDrive(){
+  toast('⏳ Cargando MSAL...');
   try{ await cargarLibrerias(); }
-  catch(e){ toast('Sin conexión a internet para cargar MSAL'); return; }
-  var clientId = document.getElementById('azure-client-id').value.trim()
-               || localStorage.getItem(AZURE_KEY);
-  if(!clientId){ toast('Introduce el Client ID de Azure'); return; }
-  if(!window.msal){ toast('MSAL no cargado — comprueba conexión'); return; }
-  localStorage.setItem(AZURE_KEY, clientId);
-  initMSAL();
+  catch(e){ toast('❌ Error cargando MSAL: '+e.message); return; }
+  if(!window.msal){ toast('❌ MSAL no disponible'); return; }
+  if(!initMSAL()){ toast('❌ Error inicializando MSAL'); return; }
   try{
-    // Paso 1: autenticación
-    var loginResp = await msalApp.loginPopup({ scopes:['User.Read'] });
-    // Paso 2: obtener token para OneDrive
+    toast('⏳ Abriendo login Microsoft...');
+    var loginResp = await msalApp.loginPopup({
+      scopes: ['User.Read','Files.ReadWrite']
+    });
+    toast('⏳ Obteniendo token OneDrive...');
     var tokenResp;
     try{
       tokenResp = await msalApp.acquireTokenSilent({
         scopes:['Files.ReadWrite'], account: loginResp.account
       });
     }catch(e2){
+      console.warn('Silent falló:', e2.message);
       tokenResp = await msalApp.acquireTokenPopup({
         scopes:['Files.ReadWrite'], account: loginResp.account
       });
     }
     window._odToken = tokenResp.accessToken;
-    odToken = tokenResp.accessToken;
     localStorage.setItem(OD_ACCOUNT, loginResp.account.username);
     updateODStatus(true, loginResp.account.name);
-    toast('OneDrive conectado como ' + loginResp.account.name + ' ✓');
+    var btnEx = document.getElementById('btn-exportar-od');
+    if(btnEx){ btnEx.disabled=false; btnEx.style.opacity='1'; btnEx.style.cursor='pointer'; }
+    toast('✅ OneDrive conectado: '+loginResp.account.name);
   }catch(e){
-    toast('Error al conectar: ' + (e.message||e));
-    console.error('OD login:', e);
+    console.error('OD error:', e);
+    var msg = e.errorCode ? e.errorCode+' — '+e.errorMessage : (e.message||'Error desconocido');
+    toast('❌ '+msg);
   }
 }
 
@@ -1916,7 +1910,7 @@ async function generarExcelCompleto(){
   addRow(wsMes, 1, ['Mes: '+mes+' | Total prácticas: '+pracMes.length], [], 'DBEAFE');
   addRow(wsMes, 2, [], [], null);
   addRow(wsMes, 3, ['Alumno','Profesor','Vehículo','Duración','Fecha','Firmada'], [true,true,true,true,true,true], '1A56DB');
-  pracMes.sort(function(a,b){return a.fecha.localeCompare(b.fecha)||a.hora.localeCompare(b.hora);})
+  pracMes.sort(function(a,b){return (a.fecha||'').localeCompare(b.fecha||'')||(a.hora||'').localeCompare(b.hora||'');})
     .forEach(function(p, idx){
       addRow(wsMes, 4+idx, [
         p.alumnoNombre, p.profesorNombre, p.vehiculo,
@@ -2003,7 +1997,7 @@ async function generarExcelCompleto(){
   addRow(wsHist, 3, ['Fecha','Hora','Alumno','Profesor','Vehículo','Dur.','Firmada','Hora firma'],
     [true,true,true,true,true,true,true,true], '1A56DB');
   var histSort = [].concat(pracAno).sort(function(a,b){
-    return b.fecha.localeCompare(a.fecha)||a.hora.localeCompare(b.hora);
+    return (b.fecha||'').localeCompare(a.fecha||'')||(a.hora||'').localeCompare(b.hora||'');
   });
   histSort.forEach(function(p, idx){
     addRow(wsHist, 4+idx, [
