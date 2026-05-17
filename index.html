@@ -2238,9 +2238,10 @@ async function exportarExcelOD(silencioso){
     if(!silencioso) toast('SheetJS no disponible — comprueba conexión a internet');
     return;
   }
-  var hoy = dKey(new Date());
-  var slug = getNombre().replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
-  var filename = slug+'_'+hoy+'.xlsx';
+  var hoy   = dKey(new Date());
+  var hora  = p2(new Date().getHours())+p2(new Date().getMinutes());
+  var slug  = getNombre().replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+  var filename = slug+'_'+hoy+'_'+hora+'.xlsx';
   sync('syncing');
   if(!silencioso) toast('⏳ Generando Excel...');
   try{
