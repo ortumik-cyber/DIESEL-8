@@ -1519,7 +1519,8 @@ document.getElementById('btn-guardar-nombre').onclick = function(){
   if(c){ var el2=document.getElementById('cfg-carpeta'); if(el2) el2.value=c; }
   var od = document.getElementById('od-folder-display');
   if(od) od.textContent = 'OneDrive/'+(c||n||'Autoescuela Diesel')+'/';
-})(); = function(){
+})();
+document.getElementById('btn-logo-aplicar').onclick = function(){
   var url = document.getElementById('logo-url-input').value.trim();
   if(!url){ toast('Introduce una URL'); return; }
   localStorage.setItem(LOGO_KEY,url); setLogos(url);
