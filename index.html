@@ -1649,6 +1649,7 @@ async function conectarOneDrive(){
     var resp = await msalApp.loginPopup({
       scopes: ['Files.ReadWrite','User.Read']
     });
+    window._odToken = resp.accessToken;
     odToken = resp.accessToken;
     localStorage.setItem(OD_ACCOUNT, resp.account.username);
     updateODStatus(true, resp.account.name);
@@ -1661,6 +1662,9 @@ async function conectarOneDrive(){
 
 // ── Obtener token (silencioso o popup) ────────────────────────
 async function getODToken(){
+  // Usar token guardado en sesión si existe
+  if(window._odToken) return window._odToken;
+  // Intentar inicializar MSAL y obtener token silencioso
   if(!msalApp) initMSAL();
   if(!msalApp) return null;
   var accounts = msalApp.getAllAccounts();
@@ -1669,19 +1673,25 @@ async function getODToken(){
     var resp = await msalApp.acquireTokenSilent({
       scopes:['Files.ReadWrite'], account: accounts[0]
     });
+    window._odToken = resp.accessToken;
     return resp.accessToken;
   }catch(e){
+    // Token silencioso falló — pedir popup
     try{
       var resp2 = await msalApp.acquireTokenPopup({scopes:['Files.ReadWrite']});
+      window._odToken = resp2.accessToken;
       return resp2.accessToken;
-    }catch(e2){ return null; }
+    }catch(e2){
+      console.error('getODToken:', e2);
+      return null;
+    }
   }
 }
 
 // ── Desconectar ───────────────────────────────────────────────
 function desconectarOD(){
   localStorage.removeItem(OD_ACCOUNT);
-  msalApp = null; odToken = null;
+  msalApp = null; odToken = null; window._odToken = null;
   updateODStatus(false);
   toast('OneDrive desconectado');
 }
