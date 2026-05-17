@@ -394,7 +394,12 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
         </div>
       </div>
       <div class="cfg-sec">
-        <h3>ℹ️ Sesión</h3>
+        <h3>⚠️ Restablecer configuración</h3>
+        <div class="card" style="padding:14px">
+          <p style="font-size:12px;color:#64748b;margin-bottom:12px">Borra nombre, logo, carpeta OneDrive, Client ID de Azure y sesión OneDrive. <strong>No borra WhatsApp.</strong></p>
+          <button class="btn-prim" style="width:100%;background:#dc2626" id="btn-reset-config">🗑️ Restablecer todo</button>
+        </div>
+      </div>
         <div class="card" style="padding:14px">
           <p style="font-size:13px">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
           <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
@@ -1520,6 +1525,24 @@ document.getElementById('btn-guardar-nombre').onclick = function(){
   var od = document.getElementById('od-folder-display');
   if(od) od.textContent = 'OneDrive/'+(c||n||'Autoescuela Diesel')+'/';
 })();
+document.getElementById('btn-reset-config').onclick = function(){
+  mostrarConfirm({ico:'⚠️', title:'¿Restablecer configuración?',
+    msg:'Se borrará:\n· Nombre de la autoescuela\n· Logo\n· Carpeta OneDrive\n· Client ID Azure\n· Sesión OneDrive\n\nWhatsApp NO se borra.',
+    okCb: function(){
+      [NOMBRE_KEY, LOGO_KEY, FOLDER_KEY, AZURE_KEY, OD_ACCOUNT, EXPORT_KEY].forEach(function(k){
+        localStorage.removeItem(k);
+      });
+      msalApp=null; odToken=null;
+      setLogos('icon.png');
+      setNombre('Autoescuela Diesel');
+      document.getElementById('cfg-nombre').value='';
+      document.getElementById('cfg-carpeta').value='';
+      document.getElementById('azure-client-id').value='';
+      updateODStatus(false);
+      toast('Configuración restablecida ✓');
+    }
+  });
+};
 document.getElementById('btn-logo-aplicar').onclick = function(){
   var url = document.getElementById('logo-url-input').value.trim();
   if(!url){ toast('Introduce una URL'); return; }
@@ -1542,10 +1565,11 @@ document.getElementById('fecha-prof-label').textContent = fmtD(profDate);
 var AZURE_KEY   = 'diesel_azure_client_id';
 var EXPORT_KEY  = 'diesel_last_export';
 var OD_ACCOUNT  = 'diesel_od_account';
+var AZURE_DEFAULT = 'd720a8b8-7604-4bf6-8317-d99610f0bb79';
 var msalApp     = null;
 var odToken     = null;
 
-// Carga scripts externos solo cuando se necesitan
+function getAzureClientId(){ return localStorage.getItem(AZURE_KEY)||AZURE_DEFAULT; }
 function cargarScript(url, comprobacion){
   return new Promise(function(resolve, reject){
     if(comprobacion && comprobacion()){ resolve(); return; }
@@ -1588,8 +1612,7 @@ function updateODStatus(conectado, nombre){
 
 // ── Inicializar MSAL ──────────────────────────────────────────
 function initMSAL(){
-  var clientId = localStorage.getItem(AZURE_KEY);
-  if(!clientId || !window.msal) return false;
+  var clientId = getAzureClientId();
   try{
     msalApp = new msal.PublicClientApplication({
       auth:{
@@ -1984,7 +2007,7 @@ document.getElementById('btn-exportar-od').onclick = function(){ exportarExcelOD
 document.getElementById('btn-od-connect').onclick   = function(){ exportarExcelOD(false); };
 
 // ── Cargar Client ID guardado en Config ───────────────────────
-var _savedClientId = localStorage.getItem(AZURE_KEY);
+var _savedClientId = getAzureClientId();
 if(_savedClientId){
   var _azEl = document.getElementById('azure-client-id');
   if(_azEl) _azEl.value = _savedClientId;
