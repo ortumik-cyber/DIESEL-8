@@ -2501,8 +2501,9 @@ document.getElementById('btn-azure-guardar').onclick = async function(){
   await conectarOneDrive();
 };
 document.getElementById('btn-od-desconectar').onclick = desconectarOD;
-document.getElementById('btn-exportar-od').onclick = function(){ exportarExcelOD(false); };
-document.getElementById('btn-od-connect').onclick   = function(){ exportarExcelOD(false); };
+var _btnExOD = document.getElementById('btn-exportar-od');
+if(_btnExOD) _btnExOD.onclick = function(){ exportarExcelOD(false); };
+document.getElementById('btn-od-connect').onclick = function(){ exportarExcelOD(false); };
 
 // ── Cargar Client ID guardado en Config ───────────────────────
 var _savedClientId = getAzureClientId();
