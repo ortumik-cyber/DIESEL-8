@@ -1375,7 +1375,7 @@ function renderDashboard(){
           +'<span style="font-size:12px;font-weight:700;color:#16a34a;text-align:right">'+fmtEur(pagado)+'</span>'
           +'<span style="text-align:right">'
             +(pend>0&&rol==='admin'
-              ?'<button onclick="marcarPago(''+alId+'',''+mesK3+'','+a.imp+')" style="font-size:10px;padding:3px 8px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer">'+fmtEur(pend)+' Cobrar</button>'
+              ?'<button onclick="marcarPago(\''+alId+'\',\''+mesK3+'\','+a.imp+')" style="font-size:10px;padding:3px 8px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer">'+fmtEur(pend)+' Cobrar</button>'
               :'<span style="font-size:12px;font-weight:700;color:'+(pend>0?'#dc2626':'#16a34a')+'">'+fmtEur(pend)+'</span>'
             )
           +'</span>'
