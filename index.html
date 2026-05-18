@@ -2072,6 +2072,7 @@ async function generarExcelCompleto(){
   wb.creator = getNombre();
   var hoy  = new Date();
   var YEAR = String(hoy.getFullYear());
+  var mesActual = YEAR+'-'+(hoy.getMonth()<9?'0':'')+(hoy.getMonth()+1);
   var pc   = getPrecios();
 
   // ── COLORES ARGB ────────────────────────────────────────────
