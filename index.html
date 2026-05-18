@@ -869,7 +869,10 @@ function entrar(){
   });
   // Dashboard tab visible para admin y jefe
   var dashTab=document.getElementById('tab-btn-dashboard');
-  if(dashTab) dashTab.style.display=(esAdminRole||esJefeRole)?'':'none';
+  if(dashTab){
+    if(esAdminRole||esJefeRole){ dashTab.classList.remove('hidden'); }
+    else { dashTab.style.display='none'; }
+  }
   // Preferencias guardadas
   setLogos(getLogo());
   setNombre(getNombre());
