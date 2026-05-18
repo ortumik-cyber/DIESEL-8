@@ -1354,9 +1354,16 @@ function renderDashboard(){
       +'<div style="font-size:22px;font-weight:700;color:'+bdr+'">'+val+'</div>'
       +'</div>';
   }
-  var mesK=dKey(new Date()).slice(0,7);
+  var hoy3m=new Date();
   var dias=[];
-  for(var d=1;d<=31;d++) dias.push(mesK+'-'+(d<10?'0':'')+d);
+  for(var mi=0;mi<3;mi++){
+    var fecha3=new Date(hoy3m.getFullYear(),hoy3m.getMonth()-mi,1);
+    var anio3=fecha3.getFullYear(), mes3=fecha3.getMonth()+1;
+    var mesStr3=anio3+'-'+(mes3<10?'0':'')+mes3;
+    var diasMes=new Date(anio3,mes3,0).getDate();
+    for(var d=1;d<=diasMes;d++) dias.push(mesStr3+'-'+(d<10?'0':'')+d);
+  }
+  var mesK=dKey(new Date()).slice(0,7);
   Promise.all(dias.map(function(f){
     return db.collection('practicas_'+f).get()
       .then(function(s){return s.docs.map(function(d2){return Object.assign({id:d2.id},d2.data(),{fecha:f});});})
@@ -1403,7 +1410,23 @@ function renderDashboard(){
       }).join('')+'</div>';
     if(prDiv) prDiv.innerHTML=tbl;
     var btnEx=document.getElementById('btn-dash-excel');
-    if(btnEx) btnEx.onclick=function(){exportarExcelOD(false);};
+    if(btnEx) btnEx.onclick=function(){
+      if(rol==='jefe'){
+        cargarLibrerias().then(function(){
+          generarExcelCompleto().then(function(buf){
+            if(!buf) return;
+            var blob=new Blob([new Uint8Array(buf)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+            var url=URL.createObjectURL(blob);
+            var a=document.createElement('a');
+            a.href=url; a.download='Dashboard_'+dKey(new Date())+'.xlsx';
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(url);
+          });
+        });
+      } else {
+        exportarExcelOD(false);
+      }
+    };
   }).catch(function(e){
     kpiDiv.innerHTML='<div style="color:'+R+';padding:16px">Error: '+e.message+'</div>';
   });
@@ -2164,9 +2187,16 @@ async function generarExcelCompleto(){
   var pendMes=pracMes.length-firmMes;
   var pctFirm=pracMes.length?Math.round(firmMes/pracMes.length*100):0;
 
-  var facMes=0,pendFacMes=0,facAno=0,pendFacAno=0;
-  pracMes.forEach(function(p){var i=calcImporte(p);if(p.firmada)facMes+=i;else pendFacMes+=i;});
-  pracAno.forEach(function(p){var i=calcImporte(p);if(p.firmada)facAno+=i;else pendFacAno+=i;});
+  var facMes=pracMes.reduce(function(a,p){return a+calcImporte(p);},0);
+  var pagadoMesXls=alumnos.reduce(function(a,al){return a+((al.pagos&&al.pagos[mesActual])||0);},0);
+  var pendFacMes=facMes-pagadoMesXls;
+  var facAno=pracAno.reduce(function(a,p){return a+calcImporte(p);},0);
+  var pagadoAnoXls=alumnos.reduce(function(a,al){
+    var total=0;if(!al.pagos)return total;
+    Object.keys(al.pagos).forEach(function(k){if(k.startsWith(anoActual))total+=al.pagos[k]||0;});
+    return total;
+  },0);
+  var pendFacAno=facAno-pagadoAnoXls;
 
   // ══════════════════════════════════════════════════════════════
   // 📊 DASHBOARD
@@ -2297,7 +2327,12 @@ async function generarExcelCompleto(){
     if((p.vehiculo||'coche')==='coche')alFac[p.alumnoId].hC+=h;
     else if(p.vehiculo==='moto')alFac[p.alumnoId].hM+=h;
     else alFac[p.alumnoId].hT+=h;
-    if(p.firmada)alFac[p.alumnoId].fac+=i;else alFac[p.alumnoId].pend+=i;
+    alFac[p.alumnoId].fac+=i;
+  });
+  // Pagado real desde alumnos.pagos
+  alumnos.forEach(function(al){
+    if(!alFac[al.id])return;
+    alFac[al.id].pend=((al.pagos&&al.pagos[mesActual])||0);
   });
 
   var alArr=Object.values(alFac).filter(function(a){return a.hC+a.hM+a.hT>0;})
