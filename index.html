@@ -289,6 +289,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
     <button class="tab active" data-tab="admin"><span class="tab-ico">📅</span>Calendario</button>
     <button class="tab" data-tab="profesor"><span class="tab-ico">👨‍🏫</span>Profesor</button>
     <button class="tab" data-tab="alumnos"><span class="tab-ico">👥</span>Alumnos</button>
+    <button class="tab hidden" id="tab-btn-dashboard" data-tab="dashboard"><span class="tab-ico">📊</span>Dashboard</button>
     <button class="tab" data-tab="config"><span class="tab-ico">⚙️</span>Config</button>
   </div>
   <div class="content">
@@ -347,6 +348,17 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       <div class="card" id="al-body"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
     </div>
 
+
+    <!-- DASHBOARD -->
+    <div id="tab-dashboard" class="hidden" style="padding:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px" id="dash-kpis">
+        <div style="grid-column:span 2;text-align:center;color:#94a3b8;font-size:13px;padding:20px">Cargando datos...</div>
+      </div>
+      <button class="btn-prim" style="width:100%;padding:14px;font-size:15px;margin-bottom:14px" id="btn-dash-excel">
+        📥 Descargar Dashboard Excel
+      </button>
+      <div id="dash-prof-resumen"></div>
+    </div>
     <!-- CONFIG -->
     <div id="tab-config" class="hidden">
       <!-- CONFIG JEFE: solo exportar -->
@@ -421,13 +433,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
           </div>
         </div>
       </div>
-      <div class="cfg-sec">
-        <h3>⚠️ Restablecer configuración</h3>
-        <div class="card" style="padding:14px">
-          <p style="font-size:12px;color:#64748b;margin-bottom:12px">Borra nombre, logo, carpeta OneDrive, Client ID de Azure y sesión OneDrive. <strong>No borra WhatsApp.</strong></p>
-          <button class="btn-prim" style="width:100%;background:#dc2626" id="btn-reset-config">🗑️ Restablecer todo</button>
-        </div>
-      </div>
+      
         <div class="card" style="padding:14px">
           <p style="font-size:13px">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
           <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
@@ -858,10 +864,13 @@ function entrar(){
   if(profList) profList.classList.toggle('hidden',!esAdminRole);
   // Tabs según rol
   document.querySelectorAll('.tab').forEach(function(b){
-    if(esProfRole)  b.style.display = b.dataset.tab==='profesor' ? '' : 'none';
-    else if(esJefeRole) b.style.display = b.dataset.tab==='profesor' ? 'none' : '';
-    else b.style.display = '';
+    if(esProfRole)      b.style.display = b.dataset.tab==='profesor' ? '' : 'none';
+    else if(esJefeRole) b.style.display = (b.dataset.tab==='profesor'||b.dataset.tab==='config') ? 'none' : '';
+    else                b.style.display = b.dataset.tab==='profesor' ? '' : '';
   });
+  // Dashboard tab visible para admin y jefe
+  var dashTab=document.getElementById('tab-btn-dashboard');
+  if(dashTab) dashTab.style.display=(esAdminRole||esJefeRole)?'':'none';
   // Preferencias guardadas
   setLogos(getLogo());
   setNombre(getNombre());
@@ -889,7 +898,7 @@ function entrar(){
 document.getElementById('btn-salir').onclick = function(){
   if(unsubCal)  { unsubCal();  unsubCal=null;  }
   if(unsubProf) { unsubProf(); unsubProf=null; }
-  rol=''; alumnos=[]; profesores=[]; profSel=''; editAlId=null; fichaAlId=null; profColors={};
+  rol=''; alumnos=[]; profesores=[]; profSel=''; editAlId=null; fichaAlId=null; profColors={}; alBilling={};
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-pass').value='';
@@ -918,7 +927,8 @@ function irTab(t){
     if(rol==='admin') renderProfesores();
     subscribeProf();
   }
-  if(t==='alumnos')  renderAlumnos();
+  if(t==='alumnos')   renderAlumnos();
+  if(t==='dashboard') renderDashboard();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1148,43 +1158,43 @@ function renderProfesor(prs){
     list.innerHTML = '<div class="empty"><div class="eico">📅</div><p>Sin prácticas este día</p></div>';
     return;
   }
-  // Vista tarjetas horizontales
   var firmadas = prs.filter(function(p){return p.firmada;}).length;
-  list.innerHTML =
-    '<div style="padding:10px 0 6px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px">'
-    +'📅 '+fmtD(profDate)+' &nbsp;·&nbsp; '+prs.length+' prácticas &nbsp;·&nbsp; <span style="color:#16a34a">'+firmadas+' firmadas</span>'
-    +'</div>'
-    +'<div id="alumnos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:6px">'
-    + prs.map(function(p){
-        var veh = p.vehiculo||'coche';
-        var vico = veh==='moto'?'🏍️':veh==='camion'?'🚛':'🚗';
-        var firmBg = p.firmada ? '#dcfce7' : '#fff';
-        var firmBdr= p.firmada ? '#16a34a' : '#cbd5e1';
-        var firmTx = p.firmada ? '#14532d' : '#0f172a';
-        return '<div class="al-card-prof" data-fecha="'+dKey(profDate)+'" data-id="'+p.id+'" data-nom="'+(p.alumnoNombre||'')+'" '
-          +'style="background:'+firmBg+';border:2px solid '+firmBdr+';border-radius:10px;padding:14px 10px;cursor:'+(p.firmada?'default':'pointer')+';text-align:center;transition:transform .15s">'
-          +'<div style="font-size:22px;font-weight:700;color:#1a56db">'+( p.hora||'')+'</div>'
-          +'<div style="font-size:13px;font-weight:700;color:'+firmTx+';margin:6px 0 4px;line-height:1.2">'+(p.alumnoNombre||'')+'</div>'
-          +'<div style="font-size:11px;color:#64748b;margin-bottom:8px">'+vico+' '+(p.duracion||45)+'min</div>'
-          +'<div style="font-size:11px;font-weight:700;color:'+(p.firmada?'#16a34a':'#dc2626')+'">'
-          +(p.firmada ? '✓ Firmado '+(p.firmaTimestamp||'') : '✎ Pendiente firma')+'</div>'
-          +'</div>';
-      }).join('')
+  var html2 = '<div style="padding:8px 0 10px;font-size:12px;color:#64748b;font-weight:600">'
+    +'📅 '+fmtD(profDate)+'&nbsp;·&nbsp;'+prs.length+' prácticas&nbsp;·&nbsp;'
+    +'<span style="color:#16a34a">'+firmadas+' firmadas</span>&nbsp;·&nbsp;'
+    +'<span style="color:#dc2626">'+(prs.length-firmadas)+' pendientes</span>'
     +'</div>';
-  // Click en tarjeta no firmada → abrir firma
-  list.querySelectorAll('.al-card-prof').forEach(function(card){
-    card.addEventListener('click', function(){
-      var fecha=card.dataset.fecha, id=card.dataset.id, nom=card.dataset.nom;
-      var prac=prs.find(function(p){return p.id===id;});
-      if(prac && !prac.firmada) abrirFirma(fecha, id, nom);
-    });
-    card.addEventListener('mouseenter',function(){
-      var prac=prs.find(function(p){return p.id===card.dataset.id;});
-      if(prac&&!prac.firmada) card.style.transform='scale(1.03)';
-    });
-    card.addEventListener('mouseleave',function(){ card.style.transform=''; });
+  html2 += '<div style="border-radius:10px;overflow:hidden;border:1px solid #e2e8f0">';
+  prs.forEach(function(p,i){
+    var veh=p.vehiculo||'coche';
+    var vico=veh==='moto'?'🏍️':veh==='camion'?'🚛':'🚗';
+    var vBg=veh==='moto'?'#fef9c3':veh==='camion'?'#f0fdf4':'#eff6ff';
+    var rowBg=p.firmada?'#f0fdf4':(i%2===0?'#ffffff':'#f8faff');
+    var bdr=i>0?'border-top:1px solid #e2e8f0':'';
+    html2 += '<div style="display:grid;grid-template-columns:56px 1fr auto;align-items:center;padding:12px 14px;background:'+rowBg+';'+bdr+'">'
+      // Hora
+      +'<div style="font-size:18px;font-weight:700;color:#0f2d6b;text-align:center">'+( p.hora||'')+'</div>'
+      // Alumno + vehículo
+      +'<div style="padding:0 10px">'
+        +'<div style="font-size:14px;font-weight:700;color:#0f172a">'+( p.alumnoNombre||'')+'</div>'
+        +'<div style="display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:'+vBg+';margin-top:3px">'+vico+' '+(p.duracion||45)+'min</div>'
+      +'</div>'
+      // Estado / botón firmar
+      +'<div style="text-align:right">'
+        +(p.firmada
+          ? '<span style="font-size:12px;font-weight:700;color:#16a34a">✓ Firmado<br><span style="font-size:9px;color:#94a3b8;font-weight:400">'+(p.firmaTimestamp||'')+'</span></span>'
+          : '<button class="btn-firmar btn-prim" data-fecha="'+dKey(profDate)+'" data-id="'+p.id+'" data-nom="'+(p.alumnoNombre||'')+'" style="padding:8px 14px;font-size:12px">✎ Firmar</button>'
+        )
+      +'</div>'
+    +'</div>';
+  });
+  html2 += '</div>';
+  list.innerHTML = html2;
+  list.querySelectorAll('.btn-firmar').forEach(function(btn){
+    btn.onclick = function(){ abrirFirma(btn.dataset.fecha, btn.dataset.id, btn.dataset.nom); };
   });
 }
+
 
 // ══════════════════════════════════════════════════════════════
 // PROFESORES CRUD — sin overrides, función única
@@ -1203,10 +1213,27 @@ function renderProfesores(){
     return '<div class="arow">'
       +'<div class="avatar" style="background:'+c.bg+';color:'+c.tx+'">'+ini+'</div>'
       +'<div class="arow-info"><div class="arow-nom">'+(p.nombre||'')+'</div>'
-        +'<div class="arow-sub">'+esp+(p.telefono?' · '+p.telefono:'')+'</div></div>'
+        +'<div class="arow-sub">'+esp+(p.telefono?' · '+p.telefono:'')
+        +(p.password?' · <span style="font-size:10px;color:#16a34a">🔑 Con acceso</span>':'<span style="font-size:10px;color:#dc2626"> · ⚠️ Sin contraseña</span>')
+        +'</div></div>'
+      +'<button class="icon-btn" style="font-size:11px;padding:5px 7px;background:#f0fdf4;border:1px solid #16a34a;color:#16a34a;border-radius:6px;margin-right:4px" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'" title="Cambiar contraseña">🔑</button>'
       +'<button class="icon-btn del-btn" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'">🗑️</button>'
       +'</div>';
   }).join('');
+  body.querySelectorAll('[title="Cambiar contraseña"]').forEach(function(btn){
+    btn.onclick=function(){
+      var nom=btn.dataset.nom, id=btn.dataset.id;
+      var nueva=prompt('Nueva contraseña para '+nom+':');
+      if(!nueva||nueva.length<3){ if(nueva!==null) toast('Mínimo 3 caracteres'); return; }
+      db.collection('profesores').doc(id).update({password:nueva})
+        .then(function(){
+          var px=profesores.find(function(x){return x.id===id;});
+          if(px) px.password=nueva;
+          renderProfesores();
+          toast('Contraseña de '+nom+' actualizada ✓');
+        }).catch(function(e){ toast('Error: '+e.message); });
+    };
+  });
   body.querySelectorAll('.del-btn').forEach(function(btn){
     btn.onclick = function(){
       mostrarConfirm({ico:'👨‍🏫', title:'¿Borrar profesor?', msg:btn.dataset.nom||'',
@@ -1268,6 +1295,59 @@ document.querySelectorAll('[data-sort]').forEach(function(btn){
 document.getElementById('search-al').oninput = renderAlumnos;
 document.getElementById('btn-nuevo-al').onclick = abrirNuevoAl;
 
+// ══════════════════════════════════════════════════════════════
+// DASHBOARD — KPIs en tiempo real (admin + jefe)
+// Firmado = alumno hizo y firmó la práctica
+// Facturado = autoescuela ha cobrado (campo separado)
+// ══════════════════════════════════════════════════════════════
+var alBilling = {};  // Cache billing mes: {alumnoId: {fac, pendFac}}
+
+function renderDashboard(){
+  var hoy2 = window._pracHoy||[];
+  function kpi(bg,bdr,lbl,val,sub){
+    return '<div style="background:'+bg+';border:2px solid '+bdr+';border-radius:10px;padding:14px;text-align:center">'
+      +'<div style="font-size:9px;font-weight:700;color:'+bdr+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+lbl+'</div>'
+      +'<div style="font-size:26px;font-weight:700;color:'+bdr+'">'+val+'</div>'
+      +'<div style="font-size:9px;color:#64748b;margin-top:2px">'+sub+'</div>'
+      +'</div>';
+  }
+  var firmH=hoy2.filter(function(p){return p.firmada;}).length;
+  var pendH=hoy2.length-firmH;
+  var impFirm=hoy2.filter(function(p){return p.firmada;}).reduce(function(a,p){return a+calcImporte(p);},0);
+  var impPend=hoy2.filter(function(p){return !p.firmada;}).reduce(function(a,p){return a+calcImporte(p);},0);
+  var kpiDiv=document.getElementById('dash-kpis');
+  if(!kpiDiv) return;
+  kpiDiv.innerHTML=
+    kpi('#dbeafe','#1a56db','Alumnos activos',alumnos.length,'registrados')+
+    kpi('#dbeafe','#1a56db','Prácticas hoy',hoy2.length,'programadas')+
+    kpi('#dcfce7','#16a34a','Firmadas hoy',firmH,'de '+hoy2.length)+
+    kpi('#fee2e2','#dc2626','Sin firmar',pendH,'pendientes firma')+
+    kpi('#dcfce7','#16a34a','Importe firmado',fmtEur(impFirm),'clases firmadas')+
+    kpi('#fee2e2','#dc2626','Pendiente firma',fmtEur(impPend),'sin firmar aún');
+  var profMap={};
+  profesores.forEach(function(p){profMap[p.id]={nom:p.nombre,pracs:0,firm:0,imp:0};});
+  hoy2.forEach(function(p){
+    if(!profMap[p.profesorId])return;
+    profMap[p.profesorId].pracs++;
+    if(p.firmada){profMap[p.profesorId].firm++;profMap[p.profesorId].imp+=calcImporte(p);}
+  });
+  var rows=Object.values(profMap).filter(function(p){return p.pracs>0;});
+  var pr=document.getElementById('dash-prof-resumen');
+  if(pr&&rows.length){
+    pr.innerHTML='<div style="font-size:10px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px">👨‍🏫 Actividad por profesor hoy</div>'
+      +rows.map(function(p){
+        return '<div style="display:flex;align-items:center;background:#f8faff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:6px">'
+          +'<div style="flex:1;font-weight:700;font-size:13px">'+p.nom+'</div>'
+          +'<div style="text-align:center;min-width:36px"><div style="font-size:15px;font-weight:700;color:#1a56db">'+p.pracs+'</div><div style="font-size:8px;color:#94a3b8">pracs</div></div>'
+          +'<div style="text-align:center;min-width:42px;margin:0 8px"><div style="font-size:15px;font-weight:700;color:'+(p.firm===p.pracs&&p.pracs>0?'#16a34a':'#dc2626')+'">'+p.firm+'✓</div><div style="font-size:8px;color:#94a3b8">firmadas</div></div>'
+          +'<div style="min-width:56px;text-align:right;font-size:13px;font-weight:700;color:#16a34a">'+fmtEur(p.imp)+'</div>'
+          +'</div>';
+      }).join('');
+  }
+  var btnEx=document.getElementById('btn-dash-excel');
+  if(btnEx) btnEx.onclick=function(){ exportarExcelOD(false); };
+}
+
 function renderAlumnos(){
   var q = (document.getElementById('search-al').value||'').toLowerCase();
   var fil = alumnos.filter(function(a){
@@ -1277,8 +1357,39 @@ function renderAlumnos(){
     ? function(a,b){ return (a.nombre||'').localeCompare(b.nombre||''); }
     : function(a,b){ return (a.createdAt||0)-(b.createdAt||0); }
   );
-  var esAdmin = rol==='admin';
+  var esAdminRol = rol==='admin';
+  var showBilling= (rol==='admin'||rol==='jefe');
   var body = document.getElementById('al-body');
+  if(!fil.length){ body.innerHTML='<div class="empty"><div class="eico">👥</div><p>Sin alumnos</p></div>'; return; }
+
+  // Cargar billing mes actual si admin/jefe y no cargado
+  if(showBilling && Object.keys(alBilling).length===0){
+    var mesK2=dKey(new Date()).slice(0,7);
+    var dias2=[];
+    for(var d2=1;d2<=31;d2++) dias2.push(mesK2+'-'+(d2<10?'0':'')+d2);
+    Promise.all(dias2.map(function(f){
+      return db.collection('practicas_'+f).get()
+        .then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id},d.data(),{fecha:f});});})
+        .catch(function(){return [];});
+    })).then(function(res){
+      alBilling={};
+      res.forEach(function(arr){arr.forEach(function(p){
+        if(!p.alumnoId)return;
+        if(!alBilling[p.alumnoId])alBilling[p.alumnoId]={fac:0,pendFac:0};
+        var imp=calcImporte(p);
+        if(p.facturado)      alBilling[p.alumnoId].fac+=imp;
+        else if(p.firmada)   alBilling[p.alumnoId].pendFac+=imp;
+      });});
+      _doRenderAlumnos(fil, esAdminRol, showBilling, body);
+    }).catch(function(){ _doRenderAlumnos(fil, esAdminRol, showBilling, body); });
+    body.innerHTML='<div class="loading"><div class="spinner"></div>Calculando facturación...</div>';
+    return;
+  }
+  _doRenderAlumnos(fil, esAdminRol, showBilling, body);
+}
+
+function _doRenderAlumnos(fil, esAdminRol, showBilling, body){
+  var esAdmin = esAdminRol;
   if(!fil.length){ body.innerHTML='<div class="empty"><div class="eico">👥</div><p>Sin alumnos</p></div>'; return; }
   body.innerHTML = fil.map(function(a){
     var ini = (a.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
@@ -1286,11 +1397,22 @@ function renderAlumnos(){
       ? '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
         +'<button class="icon-btn del-btn" data-id="'+a.id+'" data-nom="'+(a.nombre||'')+'">🗑️</button>'
       : '';
+    var billingHtml='';
+    if(showBilling){
+      var bd=alBilling[a.id]||{fac:0,pendFac:0};
+      billingHtml='<div style="font-size:10px;margin-top:2px">'
+        +(bd.fac>0?'<span style="color:#16a34a;font-weight:600">€'+bd.fac.toFixed(2)+' facturado</span>':'')
+        +(bd.fac>0&&bd.pendFac>0?' &nbsp;·&nbsp; ':'')
+        +(bd.pendFac>0?'<span style="color:#dc2626;font-weight:600">€'+bd.pendFac.toFixed(2)+' pdte facturar</span>':'')
+        +(bd.fac===0&&bd.pendFac===0?'<span style="color:#94a3b8">Sin prácticas este mes</span>':'')
+        +'</div>';
+    }
     return '<div class="arow">'
       +'<div class="avatar" data-id="'+a.id+'">'+ini+'</div>'
       +'<div class="arow-info" data-id="'+a.id+'">'
         +'<div class="arow-nom">'+(a.nombre||'')+'</div>'
         +'<div class="arow-sub">'+(a.telefono||'Sin teléfono')+' · <span class="carnet-tag">'+(a.carnet||'B')+'</span></div>'
+        +billingHtml
       +'</div>'+btns+'</div>';
   }).join('');
   body.querySelectorAll('.avatar,.arow-info').forEach(function(el){
@@ -1430,6 +1552,15 @@ function renderHistorial(al){
           ? '<img class="firma-thumb" src="'+p.firmaBase64+'" data-id="'+p.id+'" alt="Firma">'
           : '')
       : '<span class="firma-tag no">Pendiente</span>';
+    // Botón facturado (solo admin) — firmado ≠ facturado
+    var facHtml='';
+    if(rol==='admin'&&p.firmada){
+      facHtml=p.facturado
+        ?'<button class="btn-toggle-fac" data-id="'+p.id+'" data-fecha="'+p.fecha+'" data-fac="1" '
+          +'style="font-size:10px;padding:3px 7px;background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:4px;cursor:pointer;margin-left:4px">€ Facturado</button>'
+        :'<button class="btn-toggle-fac" data-id="'+p.id+'" data-fecha="'+p.fecha+'" data-fac="0" '
+          +'style="font-size:10px;padding:3px 7px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer;margin-left:4px">€ Pdte facturar</button>';
+    }
     return '<div class="hist-row">'
       +'<div style="min-width:86px;flex-shrink:0">'
         +'<div style="font-size:10px;color:#94a3b8">'+fmtFecha(p.fecha)+'</div>'
@@ -1438,11 +1569,23 @@ function renderHistorial(al){
       +'<span class="vbadge '+veh+'">'+vico+' '+veh+'</span>'
       +'<span class="prof-tag">'+((p.profesorNombre||'—').split(' ')[0])+'</span>'
       +'<span style="font-size:10px;color:#94a3b8">'+dur+'</span>'
-      +'<div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'+firmaHtml+'</div>'
+      +'<div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'+firmaHtml+facHtml+'</div>'
       +'</div>';
   }).join('');
   document.querySelectorAll('.firma-thumb').forEach(function(img){
     img.onclick = function(){ verFirma(img.dataset.id); };
+  });
+  // Toggle facturado (firmado ≠ facturado)
+  document.querySelectorAll('.btn-toggle-fac').forEach(function(btn){
+    btn.onclick=function(){
+      var id=btn.dataset.id, fecha=btn.dataset.fecha, esFac=btn.dataset.fac==='1';
+      db.collection('practicas_'+fecha).doc(id).update({facturado:!esFac})
+        .then(function(){
+          toast(esFac?'Marcado como pendiente de facturar':'Marcado como facturado ✓');
+          alBilling={};  // Invalidar cache
+          abrirHistorial(fichaAlId);
+        }).catch(function(e){ toast('Error: '+e.message); });
+    };
   });
 }
 
@@ -1670,24 +1813,7 @@ document.getElementById('btn-guardar-nombre').onclick = function(){
   var od = document.getElementById('od-folder-display');
   if(od) od.textContent = 'OneDrive/'+(c||n||'Autoescuela Diesel')+'/';
 })();
-document.getElementById('btn-reset-config').onclick = function(){
-  var carpetaActual = localStorage.getItem(FOLDER_KEY)||'';
-  mostrarConfirm({ico:'⚠️', title:'¿Restablecer configuración?',
-    msg:'Se borrará:\n· Nombre autoescuela\n· Contraseñas (vuelven al default)\n· Client ID Azure\n· Sesión OneDrive\n\nWhatsApp y precios NO se borran.',
-    okCb: function(){
-      var keepFolder = carpetaActual && confirm('Carpeta OneDrive actual: "'+carpetaActual+'"\n\nOK = Mantener carpeta | Cancelar = Borrar también');
-      [NOMBRE_KEY, LOGO_KEY, AZURE_KEY, OD_ACCOUNT, EXPORT_KEY, PASS_KEY, JEFE_KEY].forEach(function(k){ localStorage.removeItem(k); });
-      if(!keepFolder) localStorage.removeItem(FOLDER_KEY);
-      msalApp=null; odToken=null; window._odToken=null;
-      setNombre('Autoescuela Diesel');
-      document.getElementById('cfg-nombre').value='';
-      document.getElementById('azure-client-id').value='';
-      if(!keepFolder){ var cf=document.getElementById('cfg-carpeta'); if(cf) cf.value=''; }
-      updateODStatus(false);
-      toast('Configuración restablecida ✓');
-    }
-  });
-};
+// Restablecer eliminado
 // Logo handlers eliminados — sección logo quitada de Config
 
 // ══════════════════════════════════════════════════════════════
