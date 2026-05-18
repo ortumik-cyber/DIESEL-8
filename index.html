@@ -1346,8 +1346,8 @@ function renderDashboard(){
   kpiDiv.innerHTML=
     kpi('#dbeafe','#1a56db','Alumnos activos',alumnos.length,'registrados')+
     kpi('#dbeafe','#1a56db','Prácticas hoy',hoy2.length,'programadas')+
-    kpi('#dbeafe','#1a56db','Importe día',fmtEur(impTotal),''+hoy2.length+' × precio clase')+
-    kpi('#fee2e2','#dc2626','Pendiente cobro',fmtEur(impTotal),'pendiente de pago');
+    kpi('#dbeafe','#1a56db','Total a facturar',fmtEur(impTotal),''+hoy2.length+' × precio clase')+
+    kpi('#fee2e2','#dc2626','Pendiente de pagar',fmtEur(impTotal),'pendiente de pago');
 
   // Tabla alumnos: importe, pagado, pendiente
   var mesKey2=dKey(hoy2.length?new Date():new Date()).slice(0,7);
@@ -1362,7 +1362,7 @@ function renderDashboard(){
     var alTbl='<div style="margin:12px 0 6px;font-size:10px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px">📋 Alumnos — cobro del día</div>'
       +'<div style="border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">'
       +'<div style="display:grid;grid-template-columns:1fr auto auto auto;background:#1a56db;padding:8px 12px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;gap:8px">'
-      +'<span>Alumno</span><span style="text-align:right">Importe</span><span style="text-align:right">Pagado</span><span style="text-align:right">Pendiente</span></div>'
+      +'<span>Alumno</span><span style="text-align:right">Total a facturar</span><span style="text-align:right">Pagado</span><span style="text-align:right">Pendiente de pagar</span></div>'
       +alRows.map(function(a,i){
         var al2=alumnos.find(function(x){return x.nombre===a.nom;});
         var alId=al2?al2.id:'';
