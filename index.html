@@ -310,20 +310,26 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
 
     <!-- PROFESOR -->
     <div id="tab-profesor" class="hidden">
+      <!-- Gestión profesores: solo admin -->
       <div class="prof-mgmt hidden" id="prof-mgmt">
         <span>Gestión de profesores</span>
         <button class="btn-sm btn-blue" id="btn-nuevo-prof">+ Añadir</button>
       </div>
-      <div class="prof-sel-wrap">
-        <label>Profesor activo</label>
-        <select id="prof-select"><option value="">— Selecciona un profesor —</option></select>
+      <!-- Admin: selector de profesor y nav fecha -->
+      <div id="prof-admin-nav">
+        <div class="prof-sel-wrap">
+          <label>Profesor activo</label>
+          <select id="prof-select"><option value="">— Selecciona un profesor —</option></select>
+        </div>
+        <div class="date-nav">
+          <button class="dnav-btn" id="btn-prof-prev">‹</button>
+          <span class="dnav-label" id="fecha-prof-label"></span>
+          <button class="dnav-btn" id="btn-prof-next">›</button>
+        </div>
       </div>
-      <div class="date-nav">
-        <button class="dnav-btn" id="btn-prof-prev">‹</button>
-        <span class="dnav-label" id="fecha-prof-label"></span>
-        <button class="dnav-btn" id="btn-prof-next">›</button>
-      </div>
-      <div id="prac-list"><div class="empty"><div class="eico">👨‍🏫</div><p>Selecciona un profesor</p></div></div>
+      <!-- Vista del profesor: tarjetas de alumnos -->
+      <div id="prac-list"></div>
+      <!-- Lista CRUD profesores (solo admin) -->
       <div id="prof-list-wrap" class="hidden" style="margin-top:14px">
         <div class="cfg-sec"><h3>Profesores registrados</h3></div>
         <div class="card" id="prof-body"><div class="loading"><div class="spinner"></div></div></div>
@@ -384,34 +390,15 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <p id="od-status" style="font-size:11px;color:#64748b;margin-top:8px;text-align:center"></p>
           </div>
         </div>
-        <div class="cfg-sec">
-          <h3>📊 Exportar Excel</h3>
-          <div class="card" style="padding:14px">
-            <p style="font-size:12px;color:#64748b;margin-bottom:12px">Genera el informe completo y lo sube a <strong id='od-folder-display'>OneDrive/...</strong></p>
-            <button class="btn-prim" style="width:100%;margin-bottom:8px" id="btn-exportar-od">📤 Exportar a OneDrive ahora</button>
-            <p id="od-last-export" style="font-size:11px;color:#94a3b8;text-align:center"></p>
-          </div>
-        </div>
-          <div class="card" style="padding:14px">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-              <img id="logo-preview" src="icon.png" style="width:50px;height:50px;border-radius:4px;object-fit:cover;border:1px solid #cbd5e1">
-              <p style="font-size:12px;color:#64748b;flex:1">URL de imagen para el logo de la app</p>
-            </div>
-            <div class="fg"><label>URL del logo</label><input type="url" id="logo-url-input" placeholder="https://ejemplo.com/logo.png"></div>
-            <div style="display:flex;gap:8px">
-              <button class="btn-prim" style="flex:1" id="btn-logo-aplicar">Aplicar</button>
-              <button class="btn-sec" style="flex:none;padding:10px 14px" id="btn-logo-reset">Reset</button>
-            </div>
-          </div>
-        </div>
+        
         <div class="cfg-sec">
           <h3>💶 Precio por hora</h3>
           <div class="card" style="padding:14px">
             <p style="font-size:12px;color:#64748b;margin-bottom:12px">Para calcular la facturación en el Excel exportado</p>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
-              <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🚗 Coche €/h</label><input type="number" id="precio-coche" min="1" max="999" placeholder="20" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
-              <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🏍️ Moto €/h</label><input type="number" id="precio-moto" min="1" max="999" placeholder="25" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
-              <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🚛 Camión €/h</label><input type="number" id="precio-camion" min="1" max="999" placeholder="35" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
+              <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🚗 Coche €/clase</label><input type="number" id="precio-coche" min="1" max="999" placeholder="20" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
+              <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🏍️ Moto €/clase</label><input type="number" id="precio-moto" min="1" max="999" placeholder="25" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
+              <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🚛 Camión €/clase</label><input type="number" id="precio-camion" min="1" max="999" placeholder="35" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
             </div>
             <button class="btn-prim" style="width:100%" id="btn-precios-guardar">Guardar precios</button>
           </div>
@@ -724,8 +711,8 @@ function precioHora(veh){
   var p=getPrecios(); return parseFloat(p[veh]||({coche:20,moto:25,camion:35}[veh]||20));
 }
 function calcImporte(practica){
-  var h=(practica.duracion||45)/60;
-  return Math.round(h*precioHora(practica.vehiculo||'coche')*100)/100;
+  var factor=(practica.duracion||45)/45;
+  return Math.round(precioHora(practica.vehiculo||'coche')*factor*100)/100;
 }
 function fmtEur(n){ return n.toFixed(2).replace('.',',')+' €'; }
 function setNombre(nombre){
@@ -818,8 +805,10 @@ function selRole(r){
   ['role-admin','role-jefe','role-prof'].forEach(function(id){
     document.getElementById(id).classList.toggle('sel', id===r);
   });
-  document.getElementById('pass-wrap').style.display       = (r==='role-admin'||r==='role-jefe') ? 'block' : 'none';
-  document.getElementById('prof-login-wrap').style.display = r==='role-prof' ? 'block' : 'none';
+  // Todos usan el mismo campo de contraseña
+  document.getElementById('pass-wrap').style.display = 'block';
+  document.getElementById('prof-login-wrap').style.display = 'none';
+  // Cargar profesores en background para identificar por contraseña
   if(r==='role-prof') cargarProfesoresLogin();
 }
 document.getElementById('role-admin').onclick = function(){ selRole('role-admin'); };
@@ -839,14 +828,16 @@ function entrar(){
   } else if(esJefe){
     if(passVal !== getJefePass()){ document.getElementById('login-error').style.display='block'; return; }
   } else {
-    var profId   = document.getElementById('login-prof-select').value;
-    var profPass = document.getElementById('login-pass-prof').value;
-    if(!profId){ document.getElementById('login-error').style.display='block'; return; }
-    var profData = _profesoresLogin.find(function(p){ return p.id===profId; });
-    if(!profData||(profData.password&&profData.password!==profPass)){
+    // Identificar profesor por contraseña
+    if(!_profesoresLogin.length){
+      toast('Cargando profesores... inténtalo de nuevo');
+      cargarProfesoresLogin(); return;
+    }
+    var profData = _profesoresLogin.find(function(p){ return p.password && p.password===passVal; });
+    if(!profData){
       document.getElementById('login-error').style.display='block'; return;
     }
-    profSel = profId;
+    profSel = profData.id;
   }
   rol = esAdmin ? 'admin' : esJefe ? 'jefe' : 'profesor';
   document.getElementById('login-screen').classList.add('hidden');
@@ -902,7 +893,7 @@ document.getElementById('btn-salir').onclick = function(){
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-pass').value='';
-  document.getElementById('login-pass-prof').value='';
+  // login-pass-prof ya no se usa
   document.getElementById('login-error').style.display='none';
   selRole('role-admin');
 };
@@ -921,7 +912,12 @@ function irTab(t){
     b.classList.toggle('active', b.dataset.tab===t);
   });
   if(t==='admin')    subscribeCal();
-  if(t==='profesor'){ if(rol==='admin') renderProfesores(); subscribeProf(); }
+  if(t==='profesor'){
+    var adminNav = document.getElementById('prof-admin-nav');
+    if(adminNav) adminNav.style.display = rol==='admin' ? '' : 'none';
+    if(rol==='admin') renderProfesores();
+    subscribeProf();
+  }
   if(t==='alumnos')  renderAlumnos();
 }
 
@@ -1152,25 +1148,41 @@ function renderProfesor(prs){
     list.innerHTML = '<div class="empty"><div class="eico">📅</div><p>Sin prácticas este día</p></div>';
     return;
   }
-  list.innerHTML = prs.map(function(p){
-    var veh = p.vehiculo||'coche';
-    var vico = veh==='moto'?'🏍️':veh==='camion'?'🚛':'🚗';
-    var dur = p.duracion ? ' · '+p.duracion+' min' : '';
-    var firmaEl = p.firmada
-      ? '<div class="firma-ok-ico">✓</div>'
-      : '<button class="btn-firmar" data-fecha="'+dKey(profDate)+'" data-id="'+p.id+'" data-nom="'+(p.alumnoNombre||'')+'">Firmar</button>';
-    return '<div class="pcard'+(p.firmada?' firmada':'')+'">'
-      +'<div class="pcard-hora">'+(p.hora||'')+'</div>'
-      +'<div class="pcard-info">'
-        +'<div class="pcard-nom">'+(p.alumnoNombre||'')+'</div>'
-        +'<div class="pcard-sub"><span class="vbadge '+veh+'">'+vico+' '+veh+'</span>'
-          +(p.firmada?'<span style="color:#16a34a;font-size:11px">✓ '+(p.firmaTimestamp||'')+'</span>':'')
-          +'<span style="font-size:10px;color:#94a3b8">'+dur+'</span>'
-        +'</div>'
-      +'</div>'+firmaEl+'</div>';
-  }).join('');
-  list.querySelectorAll('.btn-firmar').forEach(function(btn){
-    btn.onclick = function(){ abrirFirma(btn.dataset.fecha, btn.dataset.id, btn.dataset.nom); };
+  // Vista tarjetas horizontales
+  var firmadas = prs.filter(function(p){return p.firmada;}).length;
+  list.innerHTML =
+    '<div style="padding:10px 0 6px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px">'
+    +'📅 '+fmtD(profDate)+' &nbsp;·&nbsp; '+prs.length+' prácticas &nbsp;·&nbsp; <span style="color:#16a34a">'+firmadas+' firmadas</span>'
+    +'</div>'
+    +'<div id="alumnos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:6px">'
+    + prs.map(function(p){
+        var veh = p.vehiculo||'coche';
+        var vico = veh==='moto'?'🏍️':veh==='camion'?'🚛':'🚗';
+        var firmBg = p.firmada ? '#dcfce7' : '#fff';
+        var firmBdr= p.firmada ? '#16a34a' : '#cbd5e1';
+        var firmTx = p.firmada ? '#14532d' : '#0f172a';
+        return '<div class="al-card-prof" data-fecha="'+dKey(profDate)+'" data-id="'+p.id+'" data-nom="'+(p.alumnoNombre||'')+'" '
+          +'style="background:'+firmBg+';border:2px solid '+firmBdr+';border-radius:10px;padding:14px 10px;cursor:'+(p.firmada?'default':'pointer')+';text-align:center;transition:transform .15s">'
+          +'<div style="font-size:22px;font-weight:700;color:#1a56db">'+( p.hora||'')+'</div>'
+          +'<div style="font-size:13px;font-weight:700;color:'+firmTx+';margin:6px 0 4px;line-height:1.2">'+(p.alumnoNombre||'')+'</div>'
+          +'<div style="font-size:11px;color:#64748b;margin-bottom:8px">'+vico+' '+(p.duracion||45)+'min</div>'
+          +'<div style="font-size:11px;font-weight:700;color:'+(p.firmada?'#16a34a':'#dc2626')+'">'
+          +(p.firmada ? '✓ Firmado '+(p.firmaTimestamp||'') : '✎ Pendiente firma')+'</div>'
+          +'</div>';
+      }).join('')
+    +'</div>';
+  // Click en tarjeta no firmada → abrir firma
+  list.querySelectorAll('.al-card-prof').forEach(function(card){
+    card.addEventListener('click', function(){
+      var fecha=card.dataset.fecha, id=card.dataset.id, nom=card.dataset.nom;
+      var prac=prs.find(function(p){return p.id===id;});
+      if(prac && !prac.firmada) abrirFirma(fecha, id, nom);
+    });
+    card.addEventListener('mouseenter',function(){
+      var prac=prs.find(function(p){return p.id===card.dataset.id;});
+      if(prac&&!prac.firmada) card.style.transform='scale(1.03)';
+    });
+    card.addEventListener('mouseleave',function(){ card.style.transform=''; });
   });
 }
 
@@ -1659,32 +1671,24 @@ document.getElementById('btn-guardar-nombre').onclick = function(){
   if(od) od.textContent = 'OneDrive/'+(c||n||'Autoescuela Diesel')+'/';
 })();
 document.getElementById('btn-reset-config').onclick = function(){
+  var carpetaActual = localStorage.getItem(FOLDER_KEY)||'';
   mostrarConfirm({ico:'⚠️', title:'¿Restablecer configuración?',
-    msg:'Se borrará:\n· Nombre de la autoescuela\n· Logo\n· Carpeta OneDrive\n· Client ID Azure\n· Sesión OneDrive\n\nWhatsApp NO se borra.',
+    msg:'Se borrará:\n· Nombre autoescuela\n· Contraseñas (vuelven al default)\n· Client ID Azure\n· Sesión OneDrive\n\nWhatsApp y precios NO se borran.',
     okCb: function(){
-      [NOMBRE_KEY, LOGO_KEY, FOLDER_KEY, AZURE_KEY, OD_ACCOUNT, EXPORT_KEY].forEach(function(k){
-        localStorage.removeItem(k);
-      });
-      msalApp=null; odToken=null;
-      setLogos('icon.png');
+      var keepFolder = carpetaActual && confirm('Carpeta OneDrive actual: "'+carpetaActual+'"\n\nOK = Mantener carpeta | Cancelar = Borrar también');
+      [NOMBRE_KEY, LOGO_KEY, AZURE_KEY, OD_ACCOUNT, EXPORT_KEY, PASS_KEY, JEFE_KEY].forEach(function(k){ localStorage.removeItem(k); });
+      if(!keepFolder) localStorage.removeItem(FOLDER_KEY);
+      msalApp=null; odToken=null; window._odToken=null;
       setNombre('Autoescuela Diesel');
       document.getElementById('cfg-nombre').value='';
-      document.getElementById('cfg-carpeta').value='';
       document.getElementById('azure-client-id').value='';
+      if(!keepFolder){ var cf=document.getElementById('cfg-carpeta'); if(cf) cf.value=''; }
       updateODStatus(false);
       toast('Configuración restablecida ✓');
     }
   });
 };
-document.getElementById('btn-logo-aplicar').onclick = function(){
-  var url = document.getElementById('logo-url-input').value.trim();
-  if(!url){ toast('Introduce una URL'); return; }
-  localStorage.setItem(LOGO_KEY,url); setLogos(url);
-  document.getElementById('logo-url-input').value=''; toast('Logo actualizado ✓');
-};
-document.getElementById('btn-logo-reset').onclick = function(){
-  localStorage.removeItem(LOGO_KEY); setLogos('icon.png'); toast('Logo restaurado ✓');
-};
+// Logo handlers eliminados — sección logo quitada de Config
 
 // ══════════════════════════════════════════════════════════════
 // ARRANQUE
@@ -2002,34 +2006,34 @@ async function generarExcelCompleto(){
   var wsD=wb.addWorksheet('📊 Dashboard');
   wsD.views=[{state:'frozen',ySplit:2}];
   wsD.columns=[
-    {width:1},{width:15},{width:1},{width:15},{width:1},{width:15},{width:1},{width:15},{width:1}
+    {width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16},{width:16}
   ];
 
   var fechaStr=hoy.toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  banner(wsD,1,9,'📊 '+getNombre().toUpperCase()+' — DASHBOARD EJECUTIVO',
+  banner(wsD,1,12,'📊 '+getNombre().toUpperCase()+' — DASHBOARD EJECUTIVO',
     'Generado: '+fechaStr+'   ·   Coche: '+precioHora('coche')+'€/h  ·  Moto: '+precioHora('moto')+'€/h  ·  Camión: '+precioHora('camion')+'€/h');
 
   // Fila vacía
   wsD.getRow(3).height=10;
 
   // KPI AZULES — fila 4-6 (Alumnos, Hoy, Mes, Firmadas)
-  kpiBox(wsD,4,2,'ALUMNOS ACTIVOS',alumnos.length,'en total',C.LBL,C.NAV,C.LBL,C.WHT);
+  kpiBox(wsD,4,1,'ALUMNOS ACTIVOS',alumnos.length,'en total',C.LBL,C.NAV,C.LBL,C.WHT);
   kpiBox(wsD,4,4,'PRÁCTICAS HOY',pracHoy.length,'programadas hoy',C.LBL,C.BLU,C.LBL,C.WHT);
-  kpiBox(wsD,4,6,'PRÁCTICAS MES',pracMes.length,'este mes',C.LBL,C.BLU,C.LBL,C.WHT);
-  kpiBox(wsD,4,8,'FIRMADAS MES',firmMes+'/'+pracMes.length,pctFirm+'% completadas',C.LBL,C.BLU,C.LBL,C.WHT);
+  kpiBox(wsD,4,7,'PRÁCTICAS MES',pracMes.length,'este mes',C.LBL,C.BLU,C.LBL,C.WHT);
+  kpiBox(wsD,4,10,'FIRMADAS MES',firmMes+'/'+pracMes.length,pctFirm+'% completadas',C.LBL,C.BLU,C.LBL,C.WHT);
 
   wsD.getRow(7).height=12;
 
   // KPI VERDE/ROJO — fila 8-10 (Facturación)
-  kpiBox(wsD,8,2,'FACTURADO MES',fmtEur(facMes),'cobrado',C.LGN,C.GRN,C.LGN,C.WHT);
+  kpiBox(wsD,8,1,'FACTURADO MES',fmtEur(facMes),'cobrado',C.LGN,C.GRN,C.LGN,C.WHT);
   kpiBox(wsD,8,4,'PENDIENTE MES',fmtEur(pendFacMes),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
-  kpiBox(wsD,8,6,'FACTURADO AÑO',fmtEur(facAno),'año '+YEAR,C.LGN,C.GRN,C.LGN,C.WHT);
-  kpiBox(wsD,8,8,'PENDIENTE AÑO',fmtEur(pendFacAno),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
+  kpiBox(wsD,8,7,'FACTURADO AÑO',fmtEur(facAno),'año '+YEAR,C.LGN,C.GRN,C.LGN,C.WHT);
+  kpiBox(wsD,8,10,'PENDIENTE AÑO',fmtEur(pendFacAno),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
 
   wsD.getRow(11).height=14;
 
   // TABLA PROFESORES
-  sectionHdr(wsD,12,1,9,'👨‍🏫  ACTIVIDAD POR PROFESOR — '+hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'}).toUpperCase());
+  sectionHdr(wsD,12,1,12,'👨‍🏫  ACTIVIDAD POR PROFESOR — '+hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'}).toUpperCase());
   colHdrs(wsD,13,1,['Profesor','Prác.','Horas','Firmadas','Pendientes','% Firma','Facturado','Pendiente']);
 
   var pSt={};
@@ -2083,7 +2087,7 @@ async function generarExcelCompleto(){
   wsD.getRow(rTot+1).height=12;
 
   // VEHÍCULOS
-  sectionHdr(wsD,rTot+2,1,9,'🚗 🏍️ 🚛  DISTRIBUCIÓN DE VEHÍCULOS',C.NAV);
+  sectionHdr(wsD,rTot+2,1,12,'🚗 🏍️ 🚛  DISTRIBUCIÓN DE VEHÍCULOS',C.NAV);
   colHdrs(wsD,rTot+3,1,['Vehículo','Prácticas','% Total','Horas','€/hora','Facturado','Pendiente','Estado']);
   var vehs=[['🚗 Coche','coche',C.LBL,C.DBL],['🏍️ Moto','moto',C.LYW,A('92400E')],['🚛 Camión','camion',C.LGN,C.DGN]];
   var totV=pracMes.length||1;
@@ -2093,7 +2097,7 @@ async function generarExcelCompleto(){
     var fi=ps.filter(function(p){return p.firmada;}).reduce(function(a,p){return a+calcImporte(p);},0);
     var pe=ps.filter(function(p){return !p.firmada;}).reduce(function(a,p){return a+calcImporte(p);},0);
     var pct=Math.round(ps.length/totV*100);
-    dataRow(wsD,rTot+4+ri,[v[0],ps.length,pct+'%',hs.toFixed(1)+'h',precioHora(v[1])+'€/h',fmtEur(fi),fmtEur(pe),pe>0?'⚠️ Pte':'✓ OK'],[
+    dataRow(wsD,rTot+4+ri,[v[0],ps.length,pct+'%',hs.toFixed(1)+'h',precioHora(v[1])+'€/cl',fmtEur(fi),fmtEur(pe),pe>0?'⚠️ Pte':'✓ OK'],[
       {bg:v[2],fg:v[3],bold:true,h:'left',border:true},
       {bg:v[2],fg:v[3],bold:true,border:true},
       {bg:v[2],fg:v[3],border:true},
