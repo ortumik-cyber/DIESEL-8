@@ -428,6 +428,19 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
           </div>
         </div>
         <div class="cfg-sec">
+          <h3>💾 Copia de seguridad</h3>
+          <div class="card" style="padding:14px">
+            <p style="font-size:11px;color:#64748b;margin-bottom:10px">Backup diario automático al iniciar sesión. Exporta alumnos, profesores y prácticas de los últimos 90 días.</p>
+            <button class="btn-prim" style="width:100%;margin-bottom:8px" id="btn-backup-ahora">📤 Backup a OneDrive ahora</button>
+            <div style="border-top:1px solid #e2e8f0;padding-top:10px">
+              <p style="font-size:11px;color:#64748b;margin-bottom:8px">Restaurar desde backup JSON:</p>
+              <input type="file" id="backup-file-input" accept=".json" style="display:none">
+              <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Seleccionar backup JSON</button>
+              <p id="backup-import-status" style="font-size:11px;margin-top:6px;color:#64748b"></p>
+            </div>
+          </div>
+        </div>
+        <div class="cfg-sec">
           <h3>📱 WhatsApp API</h3>
           <div class="card" style="padding:14px">
             <div class="fg"><label>API Key (360dialog)</label><input type="text" id="wa-key" placeholder="Tu API Key"></div>
@@ -2491,6 +2504,137 @@ async function generarExcelCompleto(){
 }
 
 
+
+// ══════════════════════════════════════════════════════════════
+// BACKUP DIARIO — Firebase → JSON → OneDrive
+// ══════════════════════════════════════════════════════════════
+async function exportarBackupJSON(){
+  try{
+    toast('⏳ Preparando backup...');
+    // Leer todas las colecciones
+    var [snapAl, snapPr] = await Promise.all([
+      db.collection('alumnos').get(),
+      db.collection('profesores').get()
+    ]);
+    var alumnosData   = snapAl.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
+    var profesoresData= snapPr.docs.map(function(d){return Object.assign({_id:d.id},d.data());});
+
+    // Leer prácticas (últimos 90 días)
+    var practicasData={};
+    var hoy=new Date();
+    var dias=[];
+    for(var i=0;i<90;i++){
+      var f=new Date(hoy); f.setDate(hoy.getDate()-i);
+      dias.push(dKey(f));
+    }
+    var snapsPrac=await Promise.all(dias.map(function(f){
+      return db.collection('practicas_'+f).get()
+        .then(function(s){return{fecha:f,docs:s.docs.map(function(d){return Object.assign({_id:d.id},d.data());})};})
+        .catch(function(){return{fecha:f,docs:[]};});
+    }));
+    snapsPrac.forEach(function(r){if(r.docs.length)practicasData[r.fecha]=r.docs;});
+
+    var backup={
+      version:1,
+      fecha:dKey(hoy),
+      hora:hoy.toTimeString().slice(0,8),
+      autoescuela:getNombre(),
+      alumnos:alumnosData,
+      profesores:profesoresData,
+      practicas:practicasData
+    };
+    var json=JSON.stringify(backup,null,2);
+    var blob=new Blob([json],{type:'application/json'});
+
+    // Subir a OneDrive
+    var token=await getODToken();
+    if(token){
+      var GRAPH='https://graph.microsoft.com/v1.0';
+      var FOLDER=getCarpeta().replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-_\/]/g,'');
+      var YEAR=String(hoy.getFullYear());
+      var fname=getNombre().replace(/\s+/g,'_')+'_backup_'+dKey(hoy)+'.json';
+      var path=encodeURIComponent(FOLDER)+'/'+YEAR+'/'+encodeURIComponent(fname);
+      var resp=await fetch(GRAPH+'/me/drive/root:/'+path+':/content?@microsoft.graph.conflictBehavior=replace',{
+        method:'PUT',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+        body:blob
+      });
+      if(resp.ok){
+        localStorage.setItem('diesel_last_backup', dKey(hoy));
+        toast('✅ Backup guardado en OneDrive: '+fname);
+        return true;
+      } else {
+        var err=await resp.text().catch(function(){return '';});
+        toast('❌ Error backup OneDrive '+resp.status+': '+err.slice(0,60));
+        return false;
+      }
+    } else {
+      // Sin OneDrive: descarga local
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url;
+      a.download=getNombre().replace(/\s+/g,'_')+'_backup_'+dKey(hoy)+'.json';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      toast('✅ Backup descargado localmente');
+      return true;
+    }
+  }catch(e){
+    console.error('Backup error:',e);
+    toast('❌ Error en backup: '+e.message);
+    return false;
+  }
+}
+
+async function importarBackupJSON(file){
+  if(!file) return;
+  var status=document.getElementById('backup-import-status');
+  if(status) status.textContent='⏳ Leyendo archivo...';
+  try{
+    var text=await file.text();
+    var data=JSON.parse(text);
+    if(!data.version||!data.alumnos||!data.profesores){
+      if(status) status.textContent='❌ Archivo no válido';
+      return;
+    }
+    mostrarConfirm({ico:'⚠️',title:'¿Restaurar backup?',
+      msg:'Se restaurará el backup del '+data.fecha+'\n'
+        +data.alumnos.length+' alumnos, '+data.profesores.length+' profesores\n'
+        +'Prácticas: '+Object.keys(data.practicas).length+' días\n\n'
+        +'⚠️ Los datos existentes NO se borran, se sobreescriben.',
+      okCb:async function(){
+        if(status) status.textContent='⏳ Restaurando...';
+        try{
+          // Restaurar alumnos
+          for(var al of data.alumnos){
+            var id=al._id; delete al._id;
+            await db.collection('alumnos').doc(id).set(al,{merge:true});
+          }
+          // Restaurar profesores
+          for(var pr of data.profesores){
+            var pid=pr._id; delete pr._id;
+            await db.collection('profesores').doc(pid).set(pr,{merge:true});
+          }
+          // Restaurar prácticas
+          for(var fecha2 of Object.keys(data.practicas)){
+            for(var prac of data.practicas[fecha2]){
+              var prid=prac._id; delete prac._id;
+              await db.collection('practicas_'+fecha2).doc(prid).set(prac,{merge:true});
+              await db.collection('fechas_usadas').doc(fecha2).set({fecha:fecha2});
+            }
+          }
+          if(status) status.textContent='✅ Restaurado correctamente. Recarga la página.';
+          toast('✅ Backup restaurado');
+        }catch(e2){
+          if(status) status.textContent='❌ Error restaurando: '+e2.message;
+        }
+      }
+    });
+  }catch(e){
+    if(status) status.textContent='❌ JSON inválido: '+e.message;
+  }
+}
+
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
   try{ await cargarLibrerias(); }
@@ -2536,12 +2680,19 @@ function checkAutoExport(){
   var hoy    = dKey(new Date());
   if(ultimo !== hoy && rol==='admin'){
     // Esperar 5 seg para que carguen los datos de Firebase
-    setTimeout(function(){ exportarExcelOD(true); }, 5000);
+    setTimeout(function(){ exportarExcelOD(true); setTimeout(function(){ exportarBackupJSON(); }, 15000); }, 5000);
   }
   updateODStatus(!!localStorage.getItem(OD_ACCOUNT),
     localStorage.getItem(OD_ACCOUNT)||'');
 }
 
+
+// ── Handlers backup ────────────────────────────────────────
+document.getElementById('btn-backup-ahora').onclick=function(){exportarBackupJSON();};
+document.getElementById('btn-backup-importar').onclick=function(){document.getElementById('backup-file-input').click();};
+document.getElementById('backup-file-input').onchange=function(e){
+  if(e.target.files[0]) importarBackupJSON(e.target.files[0]);
+};
 // ── Eventos Config ────────────────────────────────────────────
 document.getElementById('btn-azure-guardar').onclick = async function(){
   var clientId = document.getElementById('azure-client-id').value.trim();
