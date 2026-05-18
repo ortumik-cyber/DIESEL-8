@@ -1330,82 +1330,70 @@ function marcarPago(alumnoId, mesKey, importe){
     }).catch(function(e){toast('Error: '+e.message);});
 }
 function renderDashboard(){
-  var hoy2 = window._pracHoy||[];
-  function kpi(bg,bdr,lbl,val,sub){
+  var kpiDiv=document.getElementById('dash-kpis');
+  var prDiv=document.getElementById('dash-prof-resumen');
+  if(!kpiDiv) return;
+  kpiDiv.innerHTML='<div style="grid-column:span 2;text-align:center;color:#64748b;padding:16px">⏳ Cargando...</div>';
+  var B='#1a56db',G='#16a34a',R='#dc2626',LB='#dbeafe',LG='#dcfce7',LR='#fee2e2';
+  function kpi(bg,bdr,lbl,val){
     return '<div style="background:'+bg+';border:2px solid '+bdr+';border-radius:10px;padding:14px;text-align:center">'
       +'<div style="font-size:9px;font-weight:700;color:'+bdr+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+lbl+'</div>'
-      +'<div style="font-size:26px;font-weight:700;color:'+bdr+'">'+val+'</div>'
-      +'<div style="font-size:9px;color:#64748b;margin-top:2px">'+sub+'</div>'
+      +'<div style="font-size:22px;font-weight:700;color:'+bdr+'">'+val+'</div>'
       +'</div>';
   }
-  var firmH=hoy2.filter(function(p){return p.firmada;}).length;
-  var pendH=hoy2.length-firmH;
-  var impTotal=hoy2.reduce(function(a,p){return a+calcImporte(p);},0);
-  var kpiDiv=document.getElementById('dash-kpis');
-  if(!kpiDiv) return;
-  kpiDiv.innerHTML=
-    kpi('#dbeafe','#1a56db','Alumnos activos',alumnos.length,'registrados')+
-    kpi('#dbeafe','#1a56db','Prácticas hoy',hoy2.length,'programadas')+
-    kpi('#dbeafe','#1a56db','Total a facturar',fmtEur(impTotal),''+hoy2.length+' × precio clase')+
-    kpi('#fee2e2','#dc2626','Pendiente de pagar',fmtEur(impTotal),'pendiente de pago');
-
-  // Tabla alumnos: importe, pagado, pendiente
-  var mesKey2=dKey(hoy2.length?new Date():new Date()).slice(0,7);
-  var alImp={};
-  hoy2.forEach(function(p){
-    if(!alImp[p.alumnoId]) alImp[p.alumnoId]={nom:p.alumnoNombre,imp:0};
-    alImp[p.alumnoId].imp+=calcImporte(p);
-  });
-  var alRows=Object.values(alImp).sort(function(a,b){return(a.nom||'').localeCompare(b.nom||'');});
-  if(alRows.length){
-    var mesK3=dKey(new Date()).slice(0,7);
-    var alTbl='<div style="margin:12px 0 6px;font-size:10px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px">📋 Alumnos — cobro del día</div>'
+  var mesK=dKey(new Date()).slice(0,7);
+  var dias=[];
+  for(var d=1;d<=31;d++) dias.push(mesK+'-'+(d<10?'0':'')+d);
+  Promise.all(dias.map(function(f){
+    return db.collection('practicas_'+f).get()
+      .then(function(s){return s.docs.map(function(d2){return Object.assign({id:d2.id},d2.data(),{fecha:f});});})
+      .catch(function(){return [];});
+  })).then(function(res){
+    var pracMes=[];
+    res.forEach(function(a){a.forEach(function(p){if(p&&p.hora)pracMes.push(p);});});
+    var facturado=pracMes.reduce(function(a,p){return a+calcImporte(p);},0);
+    var pagado=alumnos.reduce(function(a,al){return a+((al.pagos&&al.pagos[mesK])||0);},0);
+    var pendiente=facturado-pagado;
+    kpiDiv.innerHTML=
+      kpi(LB,B,'Prácticas mes',pracMes.length)+
+      kpi(LB,B,'Facturado mes',fmtEur(facturado))+
+      kpi(LG,G,'Pagado',fmtEur(pagado))+
+      kpi(LR,R,'Pendiente de pagar',fmtEur(pendiente));
+    var alImp={};
+    pracMes.forEach(function(p){
+      if(!p.alumnoId)return;
+      if(!alImp[p.alumnoId])alImp[p.alumnoId]={nom:p.alumnoNombre||'',imp:0};
+      alImp[p.alumnoId].imp+=calcImporte(p);
+    });
+    var alRows=Object.keys(alImp).map(function(id){
+      var al=alumnos.find(function(a){return a.id===id;});
+      var pag=(al&&al.pagos&&al.pagos[mesK])||0;
+      return{id:id,nom:alImp[id].nom,fac:alImp[id].imp,pag:pag,pend:alImp[id].imp-pag};
+    }).sort(function(a,b){return a.nom.localeCompare(b.nom);});
+    var tbl='<div style="margin:14px 0 6px;font-size:10px;font-weight:700;color:'+B+';text-transform:uppercase;letter-spacing:.5px">Alumnos — '+mesK+'</div>'
       +'<div style="border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">'
-      +'<div style="display:grid;grid-template-columns:1fr auto auto auto;background:#1a56db;padding:8px 12px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;gap:8px">'
-      +'<span>Alumno</span><span style="text-align:right">Total a facturar</span><span style="text-align:right">Pagado</span><span style="text-align:right">Pendiente de pagar</span></div>'
+      +'<div style="display:grid;grid-template-columns:1fr auto auto auto;background:'+B+';padding:8px 12px;font-size:9px;font-weight:700;color:#fff;gap:8px;text-transform:uppercase">'
+      +'<span>Alumno</span><span>Facturado</span><span>Pagado</span><span>Pendiente</span></div>'
       +alRows.map(function(a,i){
-        var al2=alumnos.find(function(x){return x.nombre===a.nom;});
-        var alId=al2?al2.id:'';
-        var pagado=al2&&al2.pagos?al2.pagos[mesK3]||0:0;
-        var pend=Math.max(0,a.imp-pagado);
-        var bg=i%2===0?'#f8faff':'#fff';
+        var bg=i%2===0?'#f8faff':'#ffffff';
+        var accion=rol==='admin'
+          ?(a.pend>0
+            ?'<button onclick="marcarPago(\''+a.id+'\',\''+mesK+'\','+a.fac+')" style="background:'+R+';color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">'+fmtEur(a.pend)+' Cobrar</button>'
+            :'<span style="background:'+G+';color:#fff;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700">✓ Cobrado</span>')
+          :'<span style="font-size:12px;font-weight:700;color:'+(a.pend>0?R:G)+'">'+fmtEur(a.pend)+'</span>';
         return '<div style="display:grid;grid-template-columns:1fr auto auto auto;padding:10px 12px;background:'+bg+';border-top:1px solid #e2e8f0;align-items:center;gap:8px">'
-          +'<span style="font-size:12px;font-weight:600;color:#0f172a">'+a.nom+'</span>'
-          +'<span style="font-size:12px;font-weight:700;color:#1a56db;text-align:right">'+fmtEur(a.imp)+'</span>'
-          +'<span style="font-size:12px;font-weight:700;color:#16a34a;text-align:right">'+fmtEur(pagado)+'</span>'
-          +'<span style="text-align:right">'
-            +(pend>0&&rol==='admin'
-              ?'<button onclick="marcarPago(\''+alId+'\',\''+mesK3+'\','+a.imp+')" style="font-size:10px;padding:3px 8px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer">'+fmtEur(pend)+' Cobrar</button>'
-              :'<span style="font-size:12px;font-weight:700;color:'+(pend>0?'#dc2626':'#16a34a')+'">'+fmtEur(pend)+'</span>'
-            )
-          +'</span>'
+          +'<span style="font-size:12px;font-weight:600">'+a.nom+'</span>'
+          +'<span style="font-size:12px;font-weight:700;color:'+B+';text-align:right">'+fmtEur(a.fac)+'</span>'
+          +'<span style="font-size:12px;font-weight:700;color:'+G+';text-align:right">'+fmtEur(a.pag)+'</span>'
+          +'<div style="text-align:right">'+accion+'</div>'
           +'</div>';
       }).join('')+'</div>';
-    var dashPR=document.getElementById('dash-prof-resumen');
-    if(dashPR) dashPR.insertAdjacentHTML('beforebegin',alTbl);
-  }
-  var profMap={};
-  profesores.forEach(function(p){profMap[p.id]={nom:p.nombre,pracs:0,firm:0,imp:0};});
-  hoy2.forEach(function(p){
-    if(!profMap[p.profesorId])return;
-    profMap[p.profesorId].pracs++;
-    if(p.firmada){profMap[p.profesorId].firm++;profMap[p.profesorId].imp+=calcImporte(p);}
+    if(prDiv) prDiv.innerHTML=tbl;
+    var btnEx=document.getElementById('btn-dash-excel');
+    if(btnEx) btnEx.onclick=function(){exportarExcelOD(false);};
+  }).catch(function(e){
+    kpiDiv.innerHTML='<div style="color:'+R+';padding:16px">Error: '+e.message+'</div>';
   });
-  var rows=Object.values(profMap).filter(function(p){return p.pracs>0;});
-  var pr=document.getElementById('dash-prof-resumen');
-  if(pr&&rows.length){
-    pr.innerHTML='<div style="font-size:10px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px">👨‍🏫 Actividad por profesor hoy</div>'
-      +rows.map(function(p){
-        return '<div style="display:flex;align-items:center;background:#f8faff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:6px">'
-          +'<div style="flex:1;font-weight:700;font-size:13px">'+p.nom+'</div>'
-          +'<div style="text-align:center;min-width:36px"><div style="font-size:15px;font-weight:700;color:#1a56db">'+p.pracs+'</div><div style="font-size:8px;color:#94a3b8">pracs</div></div>'
-          +'<div style="text-align:center;min-width:42px;margin:0 8px"><div style="font-size:15px;font-weight:700;color:'+(p.firm===p.pracs&&p.pracs>0?'#16a34a':'#dc2626')+'">'+p.firm+'✓</div><div style="font-size:8px;color:#94a3b8">firmadas</div></div>'
-          +'<div style="min-width:56px;text-align:right;font-size:13px;font-weight:700;color:#16a34a">'+fmtEur(p.imp)+'</div>'
-          +'</div>';
-      }).join('');
-  }
-  var btnEx=document.getElementById('btn-dash-excel');
-  if(btnEx) btnEx.onclick=function(){ exportarExcelOD(false); };
 }
 
 function renderAlumnos(){
