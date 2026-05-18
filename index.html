@@ -285,7 +285,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
     <div class="hdr-right">
       <div id="sync-dot"></div>
       <button id="btn-salir">Cerrar sesión</button>
-      <button id="btn-od-connect" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);font-size:10px;padding:5px 11px;border-radius:3px;cursor:pointer;font-family:inherit;display:none">📤 OneDrive</button>
+      <button id="btn-od-connect" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85);font-size:10px;padding:5px 11px;border-radius:3px;cursor:pointer;font-family:inherit;display:none">📊 Dashboard</button>
     </div>
   </div>
   <div class="tabs">
@@ -873,6 +873,9 @@ function entrar(){
     if(esAdminRole||esJefeRole){ dashTab.classList.remove('hidden'); }
     else { dashTab.style.display='none'; }
   }
+  // Botón header Dashboard visible para admin y jefe
+  var btnODH=document.getElementById('btn-od-connect');
+  if(btnODH) btnODH.style.display=(esAdminRole||esJefeRole)?'':'none';
   // Preferencias guardadas
   setLogos(getLogo());
   setNombre(getNombre());
@@ -1306,6 +1309,26 @@ document.getElementById('btn-nuevo-al').onclick = abrirNuevoAl;
 // ══════════════════════════════════════════════════════════════
 var alBilling = {};  // Cache billing mes: {alumnoId: {fac, pendFac}}
 
+
+// ── Gestión pagos por alumno ──────────────────────────────
+function getPagoMes(alumnoId, mesKey){
+  var al = alumnos.find(function(a){return a.id===alumnoId;});
+  if(!al||!al.pagos) return 0;
+  return al.pagos[mesKey]||0;
+}
+function marcarPago(alumnoId, mesKey, importe){
+  var al=alumnos.find(function(a){return a.id===alumnoId;});
+  if(!al) return;
+  var pagos=Object.assign({},al.pagos||{});
+  pagos[mesKey]=importe; // 0=pendiente, importe=pagado
+  db.collection('alumnos').doc(alumnoId).update({pagos:pagos})
+    .then(function(){
+      al.pagos=pagos;
+      renderDashboard();
+      alBilling={}; renderAlumnos();
+      toast('Pago actualizado ✓');
+    }).catch(function(e){toast('Error: '+e.message);});
+}
 function renderDashboard(){
   var hoy2 = window._pracHoy||[];
   function kpi(bg,bdr,lbl,val,sub){
@@ -1323,9 +1346,44 @@ function renderDashboard(){
   kpiDiv.innerHTML=
     kpi('#dbeafe','#1a56db','Alumnos activos',alumnos.length,'registrados')+
     kpi('#dbeafe','#1a56db','Prácticas hoy',hoy2.length,'programadas')+
-    kpi('#dcfce7','#16a34a','Firmadas hoy',firmH,'de '+hoy2.length)+
-    kpi('#fee2e2','#dc2626','Sin firmar',pendH,'pendientes firma')+
-    kpi('#dbeafe','#1a56db','Facturación total',fmtEur(impTotal),'todas las clases del día');
+    kpi('#dbeafe','#1a56db','Importe día',fmtEur(impTotal),''+hoy2.length+' × precio clase')+
+    kpi('#fee2e2','#dc2626','Pendiente cobro',fmtEur(impTotal),'pendiente de pago');
+
+  // Tabla alumnos: importe, pagado, pendiente
+  var mesKey2=dKey(hoy2.length?new Date():new Date()).slice(0,7);
+  var alImp={};
+  hoy2.forEach(function(p){
+    if(!alImp[p.alumnoId]) alImp[p.alumnoId]={nom:p.alumnoNombre,imp:0};
+    alImp[p.alumnoId].imp+=calcImporte(p);
+  });
+  var alRows=Object.values(alImp).sort(function(a,b){return(a.nom||'').localeCompare(b.nom||'');});
+  if(alRows.length){
+    var mesK3=dKey(new Date()).slice(0,7);
+    var alTbl='<div style="margin:12px 0 6px;font-size:10px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px">📋 Alumnos — cobro del día</div>'
+      +'<div style="border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">'
+      +'<div style="display:grid;grid-template-columns:1fr auto auto auto;background:#1a56db;padding:8px 12px;font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;gap:8px">'
+      +'<span>Alumno</span><span style="text-align:right">Importe</span><span style="text-align:right">Pagado</span><span style="text-align:right">Pendiente</span></div>'
+      +alRows.map(function(a,i){
+        var al2=alumnos.find(function(x){return x.nombre===a.nom;});
+        var alId=al2?al2.id:'';
+        var pagado=al2&&al2.pagos?al2.pagos[mesK3]||0:0;
+        var pend=Math.max(0,a.imp-pagado);
+        var bg=i%2===0?'#f8faff':'#fff';
+        return '<div style="display:grid;grid-template-columns:1fr auto auto auto;padding:10px 12px;background:'+bg+';border-top:1px solid #e2e8f0;align-items:center;gap:8px">'
+          +'<span style="font-size:12px;font-weight:600;color:#0f172a">'+a.nom+'</span>'
+          +'<span style="font-size:12px;font-weight:700;color:#1a56db;text-align:right">'+fmtEur(a.imp)+'</span>'
+          +'<span style="font-size:12px;font-weight:700;color:#16a34a;text-align:right">'+fmtEur(pagado)+'</span>'
+          +'<span style="text-align:right">'
+            +(pend>0&&rol==='admin'
+              ?'<button onclick="marcarPago(''+alId+'',''+mesK3+'','+a.imp+')" style="font-size:10px;padding:3px 8px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer">'+fmtEur(pend)+' Cobrar</button>'
+              :'<span style="font-size:12px;font-weight:700;color:'+(pend>0?'#dc2626':'#16a34a')+'">'+fmtEur(pend)+'</span>'
+            )
+          +'</span>'
+          +'</div>';
+      }).join('')+'</div>';
+    var dashPR=document.getElementById('dash-prof-resumen');
+    if(dashPR) dashPR.insertAdjacentHTML('beforebegin',alTbl);
+  }
   var profMap={};
   profesores.forEach(function(p){profMap[p.id]={nom:p.nombre,pracs:0,firm:0,imp:0};});
   hoy2.forEach(function(p){
@@ -1844,11 +1902,11 @@ function updateODStatus(conectado, nombre){
   var le  = document.getElementById('od-last-export');
   if(btn) btn.style.display = rol==='admin' ? 'block' : 'none';
   if(conectado){
-    if(btn) btn.textContent = '✓ OneDrive';
+    if(btn) btn.textContent = '📊 Dashboard';
     if(btn) btn.style.background = 'rgba(34,197,94,.2)';
     if(st)  st.textContent = '✓ Conectado como ' + (nombre||'');
   } else {
-    if(btn) btn.textContent = '📤 OneDrive';
+    if(btn) btn.textContent = '📊 Dashboard';
     if(btn) btn.style.background = 'rgba(255,255,255,.1)';
     if(st)  st.textContent = 'No conectado';
   }
@@ -2506,7 +2564,24 @@ document.getElementById('btn-azure-guardar').onclick = async function(){
 document.getElementById('btn-od-desconectar').onclick = desconectarOD;
 var _btnExOD = document.getElementById('btn-exportar-od');
 if(_btnExOD) _btnExOD.onclick = function(){ exportarExcelOD(false); };
-document.getElementById('btn-od-connect').onclick = function(){ exportarExcelOD(false); };
+document.getElementById('btn-od-connect').onclick = function(){
+  if(rol==='jefe'){
+    // Descarga directa al teléfono
+    cargarLibrerias().then(function(){
+      generarExcelCompleto().then(function(buf){
+        if(!buf) return;
+        var blob=new Blob([new Uint8Array(buf)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        var url=URL.createObjectURL(blob);
+        var a=document.createElement('a');
+        a.href=url; a.download='Dashboard_'+dKey(new Date())+'.xlsx';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+      });
+    });
+  } else {
+    exportarExcelOD(false);
+  }
+};
 
 // ── Cargar Client ID guardado en Config ───────────────────────
 var _savedClientId = getAzureClientId();
