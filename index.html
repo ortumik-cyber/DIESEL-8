@@ -253,6 +253,9 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
     <div id="pass-wrap">
       <label>Contraseña</label>
       <input type="password" id="login-pass" placeholder="••••" maxlength="30">
+      <p id="prof-pass-hint" style="display:none;font-size:11px;color:#64748b;margin-top:5px;text-align:center">
+        Contraseña por defecto: <strong style="color:#1a56db">1234</strong>
+      </p>
     </div>
     <!-- Profesor selector + password -->
     <div id="prof-login-wrap" style="display:none">
@@ -811,10 +814,11 @@ function selRole(r){
   ['role-admin','role-jefe','role-prof'].forEach(function(id){
     document.getElementById(id).classList.toggle('sel', id===r);
   });
-  // Todos usan el mismo campo de contraseña
   document.getElementById('pass-wrap').style.display = 'block';
   document.getElementById('prof-login-wrap').style.display = 'none';
-  // Cargar profesores en background para identificar por contraseña
+  // Mostrar hint contraseña default solo para profesor
+  var hint = document.getElementById('prof-pass-hint');
+  if(hint) hint.style.display = r==='role-prof' ? 'block' : 'none';
   if(r==='role-prof') cargarProfesoresLogin();
 }
 document.getElementById('role-admin').onclick = function(){ selRole('role-admin'); };
@@ -834,12 +838,15 @@ function entrar(){
   } else if(esJefe){
     if(passVal !== getJefePass()){ document.getElementById('login-error').style.display='block'; return; }
   } else {
-    // Identificar profesor por contraseña
+    // Identificar profesor por contraseña (default '1234' si no tiene contraseña en Firebase)
     if(!_profesoresLogin.length){
       toast('Cargando profesores... inténtalo de nuevo');
       cargarProfesoresLogin(); return;
     }
-    var profData = _profesoresLogin.find(function(p){ return p.password && p.password===passVal; });
+    var profData = _profesoresLogin.find(function(p){
+      var passProf = p.password || '1234';
+      return passProf === passVal;
+    });
     if(!profData){
       document.getElementById('login-error').style.display='block'; return;
     }
@@ -1214,7 +1221,9 @@ function renderProfesores(){
       +'<div class="avatar" style="background:'+c.bg+';color:'+c.tx+'">'+ini+'</div>'
       +'<div class="arow-info"><div class="arow-nom">'+(p.nombre||'')+'</div>'
         +'<div class="arow-sub">'+esp+(p.telefono?' · '+p.telefono:'')
-        +(p.password?' · <span style="font-size:10px;color:#16a34a">🔑 Con acceso</span>':'<span style="font-size:10px;color:#dc2626"> · ⚠️ Sin contraseña</span>')
+        +(p.password
+          ? ' · <span style="font-size:10px;color:#16a34a">🔑 Contraseña personalizada</span>'
+          : ' · <span style="font-size:10px;color:#f97316">🔑 Default: 1234</span>')
         +'</div></div>'
       +'<button class="icon-btn" style="font-size:11px;padding:5px 7px;background:#f0fdf4;border:1px solid #16a34a;color:#16a34a;border-radius:6px;margin-right:4px" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'" title="Cambiar contraseña">🔑</button>'
       +'<button class="icon-btn del-btn" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'">🗑️</button>'
