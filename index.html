@@ -814,11 +814,8 @@ function selRole(r){
   ['role-admin','role-jefe','role-prof'].forEach(function(id){
     document.getElementById(id).classList.toggle('sel', id===r);
   });
-  document.getElementById('pass-wrap').style.display = 'block';
-  document.getElementById('prof-login-wrap').style.display = 'none';
-  // Mostrar hint contraseña default solo para profesor
-  var hint = document.getElementById('prof-pass-hint');
-  if(hint) hint.style.display = r==='role-prof' ? 'block' : 'none';
+  document.getElementById('pass-wrap').style.display = (r==='role-prof') ? 'none' : 'block';
+  document.getElementById('prof-login-wrap').style.display = (r==='role-prof') ? 'block' : 'none';
   if(r==='role-prof') cargarProfesoresLogin();
 }
 document.getElementById('role-admin').onclick = function(){ selRole('role-admin'); };
@@ -838,19 +835,14 @@ function entrar(){
   } else if(esJefe){
     if(passVal !== getJefePass()){ document.getElementById('login-error').style.display='block'; return; }
   } else {
-    // Identificar profesor por contraseña (default '1234' si no tiene contraseña en Firebase)
-    if(!_profesoresLogin.length){
-      toast('Cargando profesores... inténtalo de nuevo');
-      cargarProfesoresLogin(); return;
-    }
-    var profData = _profesoresLogin.find(function(p){
-      var passProf = p.password || '1234';
-      return passProf === passVal;
-    });
-    if(!profData){
-      document.getElementById('login-error').style.display='block'; return;
-    }
-    profSel = profData.id;
+    if(!_profesoresLogin.length){ toast('Cargando... inténtalo de nuevo'); cargarProfesoresLogin(); return; }
+    var profId2 = document.getElementById('login-prof-select').value;
+    var profPass2 = document.getElementById('login-pass-prof').value;
+    if(!profId2){ document.getElementById('login-error').style.display='block'; return; }
+    var profData = _profesoresLogin.find(function(p){ return p.id===profId2; });
+    var passEsp = profData?(profData.password||'1234'):'';
+    if(!profData||profPass2!==passEsp){ document.getElementById('login-error').style.display='block'; return; }
+    profSel = profId2;
   }
   rol = esAdmin ? 'admin' : esJefe ? 'jefe' : 'profesor';
   document.getElementById('login-screen').classList.add('hidden');
@@ -921,7 +913,7 @@ document.querySelectorAll('.tab').forEach(function(btn){
   btn.onclick = function(){ irTab(btn.dataset.tab); };
 });
 function irTab(t){
-  ['admin','profesor','alumnos','config'].forEach(function(id){
+  ['admin','profesor','alumnos','config','dashboard'].forEach(function(id){
     document.getElementById('tab-'+id).classList.toggle('hidden', id!==t);
   });
   document.querySelectorAll('.tab').forEach(function(b){
@@ -1322,8 +1314,7 @@ function renderDashboard(){
   }
   var firmH=hoy2.filter(function(p){return p.firmada;}).length;
   var pendH=hoy2.length-firmH;
-  var impFirm=hoy2.filter(function(p){return p.firmada;}).reduce(function(a,p){return a+calcImporte(p);},0);
-  var impPend=hoy2.filter(function(p){return !p.firmada;}).reduce(function(a,p){return a+calcImporte(p);},0);
+  var impTotal=hoy2.reduce(function(a,p){return a+calcImporte(p);},0);
   var kpiDiv=document.getElementById('dash-kpis');
   if(!kpiDiv) return;
   kpiDiv.innerHTML=
@@ -1331,8 +1322,7 @@ function renderDashboard(){
     kpi('#dbeafe','#1a56db','Prácticas hoy',hoy2.length,'programadas')+
     kpi('#dcfce7','#16a34a','Firmadas hoy',firmH,'de '+hoy2.length)+
     kpi('#fee2e2','#dc2626','Sin firmar',pendH,'pendientes firma')+
-    kpi('#dcfce7','#16a34a','Importe firmado',fmtEur(impFirm),'clases firmadas')+
-    kpi('#fee2e2','#dc2626','Pendiente firma',fmtEur(impPend),'sin firmar aún');
+    kpi('#dbeafe','#1a56db','Facturación total',fmtEur(impTotal),'todas las clases del día');
   var profMap={};
   profesores.forEach(function(p){profMap[p.id]={nom:p.nombre,pracs:0,firm:0,imp:0};});
   hoy2.forEach(function(p){
@@ -1386,8 +1376,7 @@ function renderAlumnos(){
         if(!p.alumnoId)return;
         if(!alBilling[p.alumnoId])alBilling[p.alumnoId]={fac:0,pendFac:0};
         var imp=calcImporte(p);
-        if(p.facturado)      alBilling[p.alumnoId].fac+=imp;
-        else if(p.firmada)   alBilling[p.alumnoId].pendFac+=imp;
+        if(p.facturado)      alBilling[p.alumnoId].fac+=imp;  // todas las prácticas se facturan
       });});
       _doRenderAlumnos(fil, esAdminRol, showBilling, body);
     }).catch(function(){ _doRenderAlumnos(fil, esAdminRol, showBilling, body); });
@@ -1561,15 +1550,7 @@ function renderHistorial(al){
           ? '<img class="firma-thumb" src="'+p.firmaBase64+'" data-id="'+p.id+'" alt="Firma">'
           : '')
       : '<span class="firma-tag no">Pendiente</span>';
-    // Botón facturado (solo admin) — firmado ≠ facturado
-    var facHtml='';
-    if(rol==='admin'&&p.firmada){
-      facHtml=p.facturado
-        ?'<button class="btn-toggle-fac" data-id="'+p.id+'" data-fecha="'+p.fecha+'" data-fac="1" '
-          +'style="font-size:10px;padding:3px 7px;background:#dcfce7;color:#16a34a;border:1px solid #16a34a;border-radius:4px;cursor:pointer;margin-left:4px">€ Facturado</button>'
-        :'<button class="btn-toggle-fac" data-id="'+p.id+'" data-fecha="'+p.fecha+'" data-fac="0" '
-          +'style="font-size:10px;padding:3px 7px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:4px;cursor:pointer;margin-left:4px">€ Pdte facturar</button>';
-    }
+    var facHtml='';  // Facturación = todas las prácticas (firmadas o no)
     return '<div class="hist-row">'
       +'<div style="min-width:86px;flex-shrink:0">'
         +'<div style="font-size:10px;color:#94a3b8">'+fmtFecha(p.fecha)+'</div>'
@@ -1578,24 +1559,14 @@ function renderHistorial(al){
       +'<span class="vbadge '+veh+'">'+vico+' '+veh+'</span>'
       +'<span class="prof-tag">'+((p.profesorNombre||'—').split(' ')[0])+'</span>'
       +'<span style="font-size:10px;color:#94a3b8">'+dur+'</span>'
-      +'<div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'+firmaHtml+facHtml+'</div>'
+      +'<div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap">'+firmaHtml+'</div>'
       +'</div>';
   }).join('');
   document.querySelectorAll('.firma-thumb').forEach(function(img){
     img.onclick = function(){ verFirma(img.dataset.id); };
   });
   // Toggle facturado (firmado ≠ facturado)
-  document.querySelectorAll('.btn-toggle-fac').forEach(function(btn){
-    btn.onclick=function(){
-      var id=btn.dataset.id, fecha=btn.dataset.fecha, esFac=btn.dataset.fac==='1';
-      db.collection('practicas_'+fecha).doc(id).update({facturado:!esFac})
-        .then(function(){
-          toast(esFac?'Marcado como pendiente de facturar':'Marcado como facturado ✓');
-          alBilling={};  // Invalidar cache
-          abrirHistorial(fichaAlId);
-        }).catch(function(e){ toast('Error: '+e.message); });
-    };
-  });
+
 }
 
 document.getElementById('btn-csv').onclick = exportarCSV;
