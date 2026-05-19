@@ -2231,16 +2231,22 @@ async function generarExcelCompleto(){
   wsD.getRow(7).height=12;
 
   // KPI VERDE/ROJO — fila 8-10 (Facturación)
-  kpiBox(wsD,8,1,'FACTURADO MES',fmtEur(facMes),'cobrado',C.LGN,C.GRN,C.LGN,C.WHT);
-  kpiBox(wsD,8,4,'PENDIENTE MES',fmtEur(pendFacMes),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
-  kpiBox(wsD,8,7,'FACTURADO AÑO',fmtEur(facAno),'año '+YEAR,C.LGN,C.GRN,C.LGN,C.WHT);
-  kpiBox(wsD,8,10,'PENDIENTE AÑO',fmtEur(pendFacAno),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
+  kpiBox(wsD,8,1,'FACTURADO MES',fmtEur(facMes),'total a cobrar',C.LBL,C.BLU,C.LBL,C.WHT);
+  kpiBox(wsD,8,4,'COBRADO MES',fmtEur(pagadoMesXls),'cobrado',C.LGN,C.GRN,C.LGN,C.WHT);
+  kpiBox(wsD,8,7,'PENDIENTE MES',fmtEur(pendFacMes),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
+  kpiBox(wsD,8,10,'FIRMADAS MES',firmMes+'/'+pracMes.length,pctFirm+'% firmadas',C.LBL,C.BLU,C.LBL,C.WHT);
 
-  wsD.getRow(11).height=14;
+  wsD.getRow(11).height=8;
+
+  kpiBox(wsD,12,1,'FACTURADO AÑO',fmtEur(facAno),'total año '+YEAR,C.LBL,C.BLU,C.LBL,C.WHT);
+  kpiBox(wsD,12,4,'COBRADO AÑO',fmtEur(pagadoAnoXls),'cobrado año',C.LGN,C.GRN,C.LGN,C.WHT);
+  kpiBox(wsD,12,7,'PENDIENTE AÑO',fmtEur(pendFacAno),'por cobrar',C.LRD,C.RED,C.LRD,C.WHT);
+
+  wsD.getRow(15).height=14;
 
   // TABLA PROFESORES
-  sectionHdr(wsD,12,1,12,'👨‍🏫  ACTIVIDAD POR PROFESOR — '+hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'}).toUpperCase());
-  colHdrs(wsD,13,1,['Profesor','Prác.','Horas','Firmadas','Pendientes','% Firma','Facturado','Pendiente']);
+  sectionHdr(wsD,16,1,12,'👨‍🏫  ACTIVIDAD POR PROFESOR — '+hoy.toLocaleDateString('es-ES',{month:'long',year:'numeric'}).toUpperCase());
+  colHdrs(wsD,17,1,['Profesor','Prác.','Horas','Firmadas','Pendientes','% Firma','Facturado','Pendiente']);
 
   var pSt={};
   profesores.forEach(function(p){pSt[p.id]={pracs:0,horas:0,firm:0,imp:0,pend:0};});
@@ -2277,7 +2283,7 @@ async function generarExcelCompleto(){
     ],18);
   });
 
-  var rTot=14+profesores.length;
+  var rTot=18+profesores.length;
   var totPracs=pracMes.length, totFirm=firmMes, totImp=facMes, totPend=pendFacMes;
   dataRow(wsD,rTot,['TOTAL',totPracs,(pracMes.reduce(function(a,p){return a+(p.duracion||45)/60;},0)).toFixed(1)+'h',totFirm,pendMes,pctFirm+'%',fmtEur(totImp),fmtEur(totPend)],[
     {bg:C.NAV,fg:C.WHT,bold:true,sz:11,h:'left',border:true},
