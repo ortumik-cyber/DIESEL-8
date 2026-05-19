@@ -1356,10 +1356,12 @@ function renderDashboard(){
   }
   var hoy3m=new Date();
   var dias=[];
+  var mesesKeys=[];
   for(var mi=0;mi<3;mi++){
     var fecha3=new Date(hoy3m.getFullYear(),hoy3m.getMonth()-mi,1);
     var anio3=fecha3.getFullYear(), mes3=fecha3.getMonth()+1;
     var mesStr3=anio3+'-'+(mes3<10?'0':'')+mes3;
+    mesesKeys.push(mesStr3);
     var diasMes=new Date(anio3,mes3,0).getDate();
     for(var d=1;d<=diasMes;d++) dias.push(mesStr3+'-'+(d<10?'0':'')+d);
   }
@@ -1372,7 +1374,11 @@ function renderDashboard(){
     var pracMes=[];
     res.forEach(function(a){a.forEach(function(p){if(p&&p.hora)pracMes.push(p);});});
     var facturado=pracMes.reduce(function(a,p){return a+calcImporte(p);},0);
-    var pagado=alumnos.reduce(function(a,al){return a+((al.pagos&&al.pagos[mesK])||0);},0);
+    // Sumar pagos de los 3 meses cargados
+    var pagado=alumnos.reduce(function(a,al){
+      if(!al.pagos) return a;
+      return a+mesesKeys.reduce(function(s,mk){return s+(al.pagos[mk]||0);},0);
+    },0);
     var pendiente=facturado-pagado;
     kpiDiv.innerHTML=
       kpi(LB,B,'Prácticas mes',pracMes.length)+
@@ -1387,7 +1393,7 @@ function renderDashboard(){
     });
     var alRows=Object.keys(alImp).map(function(id){
       var al=alumnos.find(function(a){return a.id===id;});
-      var pag=(al&&al.pagos&&al.pagos[mesK])||0;
+      var pag=(al&&al.pagos)?mesesKeys.reduce(function(s,mk){return s+(al.pagos[mk]||0);},0):0;
       return{id:id,nom:alImp[id].nom,fac:alImp[id].imp,pag:pag,pend:alImp[id].imp-pag};
     }).sort(function(a,b){return a.nom.localeCompare(b.nom);});
     var tbl='<div style="margin:14px 0 6px;font-size:10px;font-weight:700;color:'+B+';text-transform:uppercase;letter-spacing:.5px">Alumnos — '+mesK+'</div>'
@@ -2513,25 +2519,43 @@ async function generarExcelCompleto(){
   // ══════════════════════════════════════════════════════════════
   var wsHi=wb.addWorksheet('📋 Historial');
   wsHi.views=[{state:'frozen',ySplit:3}];
-  wsHi.columns=[{width:14},{width:8},{width:22},{width:18},{width:12},{width:8},{width:10},{width:10},{width:10}];
-  banner(wsHi,1,9,'📋  HISTORIAL COMPLETO — '+YEAR,'Total: '+pracAno.length+' prácticas   ·   Facturado: '+fmtEur(facAno)+'   ·   Pendiente: '+fmtEur(pendFacAno));
-  colHdrs(wsHi,3,1,['Fecha','Hora','Alumno','Profesor','Vehículo','Dur.','Estado','Importe','H.Firma']);
-  pracAno.forEach(function(p,ri){
+  wsHi.columns=[{width:24},{width:10},{width:10},{width:10},{width:10},{width:12},{width:12},{width:12}];
+  // Acumular por alumno
+  var alAcum={};
+  alumnos.forEach(function(al){
+    alAcum[al.id]={nom:al.nombre,pracs:0,firmadas:0,coche:0,moto:0,camion:0,imp:0,pagado:(al.pagos&&al.pagos[mesActual])||0};
+  });
+  pracAno.forEach(function(p){
+    if(!p.alumnoId)return;
+    if(!alAcum[p.alumnoId])alAcum[p.alumnoId]={nom:p.alumnoNombre||'',pracs:0,firmadas:0,coche:0,moto:0,camion:0,imp:0,pagado:0};
+    alAcum[p.alumnoId].pracs++;
+    if(p.firmada) alAcum[p.alumnoId].firmadas++;
+    var v=p.vehiculo||'coche';
+    if(v==='moto')alAcum[p.alumnoId].moto++;
+    else if(v==='camion')alAcum[p.alumnoId].camion++;
+    else alAcum[p.alumnoId].coche++;
+    alAcum[p.alumnoId].imp+=calcImporte(p);
+  });
+  var alAcumRows=Object.values(alAcum).filter(function(a){return a.pracs>0;})
+    .sort(function(a,b){return(a.nom||'').localeCompare(b.nom||'');});
+  banner(wsHi,1,8,'📋  HISTORIAL ACUMULADO — '+YEAR,
+    'Total alumnos: '+alAcumRows.length+'   ·   Total prácticas: '+pracAno.length+'   ·   Facturado: '+fmtEur(facAno));
+  colHdrs(wsHi,3,1,['Alumno','Total Prác.','Firmadas','Sin firmar','🚗 Coche','🏍️ Moto','🚛 Camión','Importe']);
+  alAcumRows.forEach(function(a,ri){
     var bg=ri%2===0?C.GR1:C.WHT;
-    var vb=p.vehiculo==='moto'?C.LYW:p.vehiculo==='camion'?C.LGN:C.LBL;
-    var vf=p.vehiculo==='moto'?A('92400E'):p.vehiculo==='camion'?C.DGN:C.DBL;
-    dataRow(wsHi,4+ri,[fmtFecha(p.fecha),p.hora||'',p.alumnoNombre||'',p.profesorNombre||'',
-      (p.vehiculo==='moto'?'🏍️ ':p.vehiculo==='camion'?'🚛 ':'🚗 ')+(p.vehiculo||'coche'),
-      (p.duracion||45)+"'",p.firmada?'✓ Firmada':'⏳ Pendiente',fmtEur(calcImporte(p)),p.firmaTimestamp||'—'],[
-      {bg:bg,fg:C.SOF,border:true},
-      {bg:C.LBL,fg:C.BLU,bold:true,border:true},
+    var sinFirm=a.pracs-a.firmadas;
+    dataRow(wsHi,4+ri,[
+      a.nom, a.pracs, a.firmadas, sinFirm,
+      a.coche||'—', a.moto||'—', a.camion||'—', fmtEur(a.imp)
+    ],[
       {bg:bg,fg:C.DRK,bold:true,h:'left',border:true},
-      {bg:bg,fg:C.MID,h:'left',border:true},
-      {bg:vb,fg:vf,bold:true,border:true},
-      {bg:bg,fg:C.MID,border:true},
-      {bg:p.firmada?C.LGN:C.LRD,fg:p.firmada?C.GRN:C.RED,bold:true,border:true},
-      {bg:p.firmada?C.LGN:C.LRD,fg:p.firmada?C.DGN:C.DRD,bold:true,border:true},
-      {bg:bg,fg:C.SOF,border:true}
+      {bg:bg,fg:C.BLU,bold:true,border:true},
+      {bg:a.firmadas>0?C.LGN:bg,fg:a.firmadas>0?C.GRN:C.SOF,bold:true,border:true},
+      {bg:sinFirm>0?C.LRD:bg,fg:sinFirm>0?C.RED:C.SOF,bold:true,border:true},
+      {bg:a.coche?C.LBL:bg,fg:a.coche?C.BLU:C.SOF,border:true},
+      {bg:a.moto?C.LYW:bg,fg:a.moto?A('92400E'):C.SOF,border:true},
+      {bg:a.camion?C.LGN:bg,fg:a.camion?C.GRN:C.SOF,border:true},
+      {bg:bg,fg:C.BLU,bold:true,border:true}
     ],18);
   });
 
