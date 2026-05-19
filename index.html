@@ -2196,10 +2196,13 @@ async function generarExcelCompleto(){
   var pctFirm=pracMes.length?Math.round(firmMes/pracMes.length*100):0;
 
   var facMes=pracMes.reduce(function(a,p){return a+calcImporte(p);},0);
-  var pagadoMesXls=alumnos.reduce(function(a,al){return a+((al.pagos&&al.pagos[mesActual])||0);},0);
+  // Recargar alumnos con pagos actualizados
+  var alumnosSnap=await db.collection('alumnos').get();
+  var alumnosFresh=alumnosSnap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+  var pagadoMesXls=alumnosFresh.reduce(function(a,al){return a+((al.pagos&&al.pagos[mesActual])||0);},0);
   var pendFacMes=facMes-pagadoMesXls;
   var facAno=pracAno.reduce(function(a,p){return a+calcImporte(p);},0);
-  var pagadoAnoXls=alumnos.reduce(function(a,al){
+  var pagadoAnoXls=alumnosFresh.reduce(function(a,al){
     if(!al.pagos) return a;
     var total=Object.keys(al.pagos).reduce(function(s,k){
       return s+(k.startsWith(anoActual)?(al.pagos[k]||0):0);
