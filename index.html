@@ -2200,9 +2200,11 @@ async function generarExcelCompleto(){
   var pendFacMes=facMes-pagadoMesXls;
   var facAno=pracAno.reduce(function(a,p){return a+calcImporte(p);},0);
   var pagadoAnoXls=alumnos.reduce(function(a,al){
-    var total=0;if(!al.pagos)return total;
-    Object.keys(al.pagos).forEach(function(k){if(k.startsWith(anoActual))total+=al.pagos[k]||0;});
-    return total;
+    if(!al.pagos) return a;
+    var total=Object.keys(al.pagos).reduce(function(s,k){
+      return s+(k.startsWith(anoActual)?(al.pagos[k]||0):0);
+    },0);
+    return a+total;
   },0);
   var pendFacAno=facAno-pagadoAnoXls;
 
