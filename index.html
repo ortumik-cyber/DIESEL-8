@@ -406,9 +406,9 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <p id="od-status" style="font-size:11px;color:#64748b;margin-top:8px;text-align:center"></p>
             <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
               <p style="font-size:11px;font-weight:700;color:#0f2d6b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">💾 Exportar / Importar datos</p>
-              <button class="btn-prim" style="width:100%;margin-bottom:6px" id="btn-backup-ahora">📤 Exportar JSON a OneDrive</button>
+              <button class="btn-prim" style="width:100%;margin-bottom:6px" id="btn-backup-ahora">📤 Backup datos → DIESEL BACKUP</button>
               <input type="file" id="backup-file-input" accept=".json" style="display:none">
-              <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Importar backup JSON</button>
+              <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Importar datos desde backup</button>
               <p id="backup-import-status" style="font-size:11px;margin-top:6px;color:#64748b"></p>
             </div>
           </div>
@@ -904,6 +904,7 @@ function entrar(){
   // Tab inicial según rol
   if(esProfRole) irTab('profesor');
   else irTab('admin');
+  iniciarTimer21();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2039,9 +2040,8 @@ async function subirOneDrive(buffer, filename){
   if(!token){ toast('Sin token OneDrive — reconecta'); return false; }
   if(!buffer || !buffer.byteLength){ toast('Excel vacío'); return false; }
   var GRAPH  = 'https://graph.microsoft.com/v1.0';
-  var FOLDER = getCarpeta().replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-_\/]/g,'');
   var YEAR   = new Date().getFullYear();
-  var path   = encodeURIComponent(FOLDER)+'/'+YEAR+'/'+encodeURIComponent(filename);
+  var path   = 'DIESEL/DIESEL%20DASHBOARD/'+YEAR+'/'+encodeURIComponent(filename);
   try{
     var resp = await fetch(
       GRAPH+'/me/drive/root:/'+path+':/content?@microsoft.graph.conflictBehavior=replace',
@@ -2621,10 +2621,9 @@ async function exportarBackupJSON(){
     var token=await getODToken();
     if(token){
       var GRAPH='https://graph.microsoft.com/v1.0';
-      var FOLDER=getCarpeta().replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-_\/]/g,'');
       var YEAR=String(hoy.getFullYear());
       var fname=getNombre().replace(/\s+/g,'_')+'_backup_'+dKey(hoy)+'.json';
-      var path=encodeURIComponent(FOLDER)+'/'+YEAR+'/'+encodeURIComponent(fname);
+      var path='DIESEL/DIESEL%20BACKUP/'+YEAR+'/'+encodeURIComponent(fname);
       var resp=await fetch(GRAPH+'/me/drive/root:/'+path+':/content?@microsoft.graph.conflictBehavior=replace',{
         method:'PUT',
         headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
@@ -2706,6 +2705,23 @@ async function importarBackupJSON(file){
   }
 }
 
+
+// ── Timer backup automático 21:00 ─────────────────────────
+function iniciarTimer21(){
+  setInterval(function(){
+    if(rol!=='admin') return;
+    var now=new Date();
+    if(now.getHours()===21&&now.getMinutes()===0){
+      var key='diesel_bk21_'+dKey(now);
+      if(!localStorage.getItem(key)){
+        localStorage.setItem(key,'1');
+        toast('⏰ Backup automático 21:00 iniciando...');
+        exportarExcelOD(true);
+        setTimeout(function(){ exportarBackupJSON(); }, 30000);
+      }
+    }
+  }, 60000);
+}
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
   try{ await cargarLibrerias(); }
