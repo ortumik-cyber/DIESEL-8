@@ -398,15 +398,22 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
           <div class="card" style="padding:14px">
             <p style="font-size:12px;color:#64748b;margin-bottom:10px">Introduce el Client ID de tu app registrada en Azure AD para conectar OneDrive</p>
             <div class="fg"><label>Azure App Client ID</label><input type="text" id="azure-client-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+            <div class="fg"><label>Email cuenta OneDrive autoescuela</label><input type="email" id="od-email-hint" placeholder="autoescuela@outlook.com" style="margin-bottom:8px"></div>
             <div style="display:flex;gap:8px">
               <button class="btn-prim" style="flex:1" id="btn-azure-guardar">Guardar y conectar</button>
               <button class="btn-sec" style="flex:none;padding:10px 14px" id="btn-od-desconectar">Desconectar</button>
             </div>
             <p id="od-status" style="font-size:11px;color:#64748b;margin-top:8px;text-align:center"></p>
+            <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
+              <p style="font-size:11px;font-weight:700;color:#0f2d6b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">💾 Exportar / Importar datos</p>
+              <button class="btn-prim" style="width:100%;margin-bottom:6px" id="btn-backup-ahora">📤 Exportar JSON a OneDrive</button>
+              <input type="file" id="backup-file-input" accept=".json" style="display:none">
+              <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Importar backup JSON</button>
+              <p id="backup-import-status" style="font-size:11px;margin-top:6px;color:#64748b"></p>
+            </div>
           </div>
         </div>
-        
-        <div class="cfg-sec">
+                <div class="cfg-sec">
           <h3>💶 Precio por hora</h3>
           <div class="card" style="padding:14px">
             <p style="font-size:12px;color:#64748b;margin-bottom:12px">Para calcular la facturación en el Excel exportado</p>
@@ -425,19 +432,6 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <button class="btn-prim" style="width:100%;margin-bottom:12px" id="btn-pass-cambiar">Guardar contraseña Admin</button>
             <div class="fg"><label>Contraseña Jefe</label><input type="password" id="jefe-pass-input" placeholder="Mínimo 3 caracteres"></div>
             <button class="btn-prim" style="width:100%;background:#16a34a" id="btn-jefe-pass-guardar">Guardar contraseña Jefe</button>
-          </div>
-        </div>
-        <div class="cfg-sec">
-          <h3>💾 Copia de seguridad</h3>
-          <div class="card" style="padding:14px">
-            <p style="font-size:11px;color:#64748b;margin-bottom:10px">Backup diario automático al iniciar sesión. Exporta alumnos, profesores y prácticas de los últimos 90 días.</p>
-            <button class="btn-prim" style="width:100%;margin-bottom:8px" id="btn-backup-ahora">📤 Backup a OneDrive ahora</button>
-            <div style="border-top:1px solid #e2e8f0;padding-top:10px">
-              <p style="font-size:11px;color:#64748b;margin-bottom:8px">Restaurar desde backup JSON:</p>
-              <input type="file" id="backup-file-input" accept=".json" style="display:none">
-              <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Seleccionar backup JSON</button>
-              <p id="backup-import-status" style="font-size:11px;margin-top:6px;color:#64748b"></p>
-            </div>
           </div>
         </div>
         <div class="cfg-sec">
@@ -699,6 +693,7 @@ var PROF_PAL = [
 // ESTADO
 // ══════════════════════════════════════════════════════════════
 var rol = '', sortMode = 'alpha';
+var esProfRole = false;
 var currentDate = new Date(), profDate = new Date();
 var alumnos = [], profesores = [];
 var profSel = '', editAlId = null, fichaAlId = null;
@@ -866,7 +861,7 @@ function entrar(){
   // Visibilidad por rol
   var esAdminRole = rol==='admin';
   var esJefeRole  = rol==='jefe';
-  var esProfRole  = rol==='profesor';
+  esProfRole = rol==='profesor';
   document.getElementById('btn-nuevo-al').classList.toggle('hidden',!esAdminRole);
   document.getElementById('cfg-admin').classList.toggle('hidden',!esAdminRole);
   document.getElementById('cfg-jefe').classList.toggle('hidden',!esJefeRole);
@@ -876,9 +871,10 @@ function entrar(){
   if(profList) profList.classList.toggle('hidden',!esAdminRole);
   // Tabs según rol
   document.querySelectorAll('.tab').forEach(function(b){
-    if(esProfRole)      b.style.display = b.dataset.tab==='profesor' ? '' : 'none';
-    else if(esJefeRole) b.style.display = (b.dataset.tab==='profesor'||b.dataset.tab==='config') ? 'none' : '';
-    else                b.style.display = b.dataset.tab==='profesor' ? '' : '';
+    var t=b.dataset.tab;
+    if(esProfRole)      b.style.display=(t==='admin'||t==='alumnos'||t==='profesor')?'':'none';
+    else if(esJefeRole) b.style.display=(t==='profesor'||t==='config')?'none':'';
+    else                b.style.display='';
   });
   // Dashboard tab visible para admin y jefe
   var dashTab=document.getElementById('tab-btn-dashboard');
@@ -1482,7 +1478,7 @@ function _doRenderAlumnos(fil, esAdminRol, showBilling, body){
   if(!fil.length){ body.innerHTML='<div class="empty"><div class="eico">👥</div><p>Sin alumnos</p></div>'; return; }
   body.innerHTML = fil.map(function(a){
     var ini = (a.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
-    var btns = esAdmin
+    var btns = (esAdmin||esProfRole)
       ? '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
         +'<button class="icon-btn del-btn" data-id="'+a.id+'" data-nom="'+(a.nombre||'')+'">🗑️</button>'
       : '';
@@ -1970,9 +1966,10 @@ async function conectarOneDrive(){
   if(!initMSAL()){ toast('❌ Error inicializando MSAL'); return; }
   try{
     toast('⏳ Abriendo login Microsoft...');
-    var loginResp = await msalApp.loginPopup({
-      scopes: ['User.Read','Files.ReadWrite']
-    });
+    var hint=localStorage.getItem('diesel_od_hint')||'';
+    var loginOpts={scopes:['User.Read','Files.ReadWrite']};
+    if(hint) loginOpts.loginHint=hint;
+    var loginResp = await msalApp.loginPopup(loginOpts);
     toast('⏳ Obteniendo token OneDrive...');
     var tokenResp;
     try{
@@ -1986,6 +1983,8 @@ async function conectarOneDrive(){
       });
     }
     window._odToken = tokenResp.accessToken;
+    var hintEl=document.getElementById('od-email-hint');
+    if(hintEl&&hintEl.value.trim()) localStorage.setItem('diesel_od_hint',hintEl.value.trim());
     localStorage.setItem(OD_ACCOUNT, loginResp.account.username);
     updateODStatus(true, loginResp.account.name);
     var btnEx = document.getElementById('btn-exportar-od');
@@ -2799,6 +2798,9 @@ var _savedClientId = getAzureClientId();
 if(_savedClientId){
   var _azEl = document.getElementById('azure-client-id');
   if(_azEl) _azEl.value = _savedClientId;
+  var _hintSaved=localStorage.getItem('diesel_od_hint')||'';
+  var _hintEl=document.getElementById('od-email-hint');
+  if(_hintEl&&_hintSaved) _hintEl.value=_hintSaved;
 }
 
 // ── Hook en entrar() para auto-export y init MSAL ─────────────
