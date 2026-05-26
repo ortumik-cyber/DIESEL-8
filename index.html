@@ -1486,7 +1486,8 @@ function _doRenderAlumnos(fil, esAdminRol, showBilling, body){
   body.innerHTML = fil.map(function(a){
     var ini = (a.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
     var btns = (esAdmin||esProfRole)
-      ? '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
+      ? '<button onclick="mostrarHistorialAlumno(\''+a.id+'\',\''+a.nombre+'\')" style="background:#0f2d6b;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer;margin-right:6px">📋 Historial</button>'
+      + '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
         +'<button class="icon-btn del-btn" data-id="'+a.id+'" data-nom="'+(a.nombre||'')+'">🗑️</button>'
       : '';
     var billingHtml='';
@@ -2856,6 +2857,88 @@ async function exportarBackupExcel(){
     }
   }catch(e){ console.error(e); toast('❌ Error Excel backup: '+e.message); return false; }
 }
+
+// ── Historial completo alumno con firmas ──────────────────
+async function mostrarHistorialAlumno(alId, alNombre){
+  var modal=document.getElementById('modal-historial');
+  var body=document.getElementById('hist-body');
+  var nomEl=document.getElementById('hist-nombre');
+  var metaEl=document.getElementById('hist-meta');
+  nomEl.textContent=alNombre;
+  metaEl.textContent='Cargando historial...';
+  body.innerHTML='<div style="text-align:center;padding:40px;color:#64748b">⏳ Cargando prácticas...</div>';
+  modal.style.display='block';
+
+  try{
+    // Cargar todas las fechas usadas
+    var snapFechas=await db.collection('fechas_usadas').orderBy('fecha','desc').get();
+    var fechas=snapFechas.docs.map(function(d){return d.id;});
+
+    // Cargar prácticas de cada fecha y filtrar por alumnoId
+    var todasPrac=[];
+    await Promise.all(fechas.map(function(f){
+      return db.collection('practicas_'+f).where('alumnoId','==',alId).get()
+        .then(function(s){s.docs.forEach(function(d){
+          todasPrac.push(Object.assign({id:d.id,fecha:f},d.data()));
+        });}).catch(function(){});
+    }));
+
+    todasPrac.sort(function(a,b){
+      return (b.fecha+' '+(b.hora||'')).localeCompare(a.fecha+' '+(a.hora||''));
+    });
+
+    var firmadas=todasPrac.filter(function(p){return p.firmada;}).length;
+    var importe=todasPrac.reduce(function(a,p){return a+calcImporte(p);},0);
+    metaEl.textContent=todasPrac.length+' prácticas · '+firmadas+' firmadas · '+fmtEur(importe)+' facturado';
+
+    if(!todasPrac.length){
+      body.innerHTML='<div style="text-align:center;padding:40px;color:#64748b">Sin prácticas registradas</div>';
+      return;
+    }
+
+    var html2='';
+    var mesActual2='';
+    todasPrac.forEach(function(p){
+      var mes=p.fecha?p.fecha.slice(0,7):'';
+      if(mes!==mesActual2){
+        mesActual2=mes;
+        var meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        var parts=mes.split('-');
+        var nomMes=parts.length===2?meses[parseInt(parts[1])-1]+' '+parts[0]:'';
+        html2+='<div style="background:#0f2d6b;color:#fff;padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:12px -0px 8px;border-radius:6px">'+nomMes+'</div>';
+      }
+      var vColor=p.vehiculo==='moto'?'#92400e':p.vehiculo==='camion'?'#166534':'#1e3a8a';
+      var vBg=p.vehiculo==='moto'?'#fef3c7':p.vehiculo==='camion'?'#dcfce7':'#dbeafe';
+      var vIcon=p.vehiculo==='moto'?'🏍️':p.vehiculo==='camion'?'🚛':'🚗';
+      html2+='<div style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px;overflow:hidden">';
+      // Cabecera práctica
+      html2+='<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f8faff">';
+      html2+='<span style="font-size:13px;font-weight:700;color:#0f2d6b">'+p.fecha+'</span>';
+      html2+='<span style="font-size:12px;color:#1a56db;font-weight:600">'+( p.hora||'')+'</span>';
+      html2+='<span style="background:'+vBg+';color:'+vColor+';font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px">'+vIcon+' '+(p.vehiculo||'coche')+'</span>';
+      html2+='<span style="font-size:11px;color:#64748b">'+( p.duracion||45)+' min</span>';
+      html2+='<span style="background:'+(p.firmada?'#dcfce7':'#fee2e2')+';color:'+(p.firmada?'#16a34a':'#dc2626')+';font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:auto">'+(p.firmada?'✓ Firmada':'⏳ Sin firmar')+'</span>';
+      html2+='<span style="font-size:12px;font-weight:700;color:#1a56db">'+fmtEur(calcImporte(p))+'</span>';
+      html2+='</div>';
+      // Datos adicionales
+      html2+='<div style="padding:8px 14px;font-size:11px;color:#64748b">Prof: <strong style="color:#0f172a">'+(p.profesorNombre||'—')+'</strong></div>';
+      // Firma
+      if(p.firmada&&p.firmaBase64){
+        html2+='<div style="padding:8px 14px;border-top:1px solid #f1f5f9">';
+        html2+='<div style="font-size:10px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Firma</div>';
+        html2+='<img src="'+p.firmaBase64+'" style="max-width:100%;height:80px;object-fit:contain;border:1px solid #e2e8f0;border-radius:4px;background:#fafafa">';
+        if(p.firmaTimestamp){
+          html2+='<div style="font-size:10px;color:#94a3b8;margin-top:4px">'+p.firmaTimestamp+'</div>';
+        }
+        html2+='</div>';
+      }
+      html2+='</div>';
+    });
+    body.innerHTML=html2;
+  }catch(e){
+    body.innerHTML='<div style="color:#dc2626;padding:20px">Error: '+e.message+'</div>';
+  }
+}
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
   try{ await cargarLibrerias(); }
@@ -2968,5 +3051,29 @@ entrar = function(){
   }, 1000);
 };
 </script>
+
+<!-- Modal historial alumno con firmas -->
+<div id="modal-historial" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;overflow-y:auto">
+  <div style="background:#fff;max-width:700px;margin:20px auto;border-radius:12px;overflow:hidden;min-height:90vh">
+    <div style="background:#0f2d6b;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10">
+      <div>
+        <div id="hist-nombre" style="color:#fff;font-size:16px;font-weight:700"></div>
+        <div id="hist-meta" style="color:#93c5fd;font-size:11px;margin-top:2px"></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="window.print()" style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">🖨️ Imprimir</button>
+        <button onclick="document.getElementById('modal-historial').style.display='none'" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;cursor:pointer">✕ Cerrar</button>
+      </div>
+    </div>
+    <div id="hist-body" style="padding:16px"></div>
+  </div>
+</div>
+<style>
+@media print {
+  body > *:not(#modal-historial){ display:none !important; }
+  #modal-historial{ position:static !important; background:#fff !important; }
+  .no-print{ display:none !important; }
+}
+</style>
 </body>
 </html>
