@@ -354,6 +354,10 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
 
     <!-- DASHBOARD -->
     <div id="tab-dashboard" class="hidden" style="padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:700;color:#0f2d6b;text-transform:uppercase;letter-spacing:.5px">Dashboard — últimos 3 meses</span>
+        <button onclick="renderDashboard()" style="font-size:11px;padding:4px 12px;background:#1a56db;color:#fff;border:none;border-radius:4px;cursor:pointer">🔄 Actualizar</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px" id="dash-kpis">
         <div style="grid-column:span 2;text-align:center;color:#94a3b8;font-size:13px;padding:20px">Cargando datos...</div>
       </div>
@@ -734,7 +738,7 @@ function precioHora(veh){
   var p=getPrecios(); return parseFloat(p[veh]||({coche:20,moto:25,camion:35}[veh]||20));
 }
 function calcImporte(practica){
-  var factor=(practica.duracion||45)/45;
+  var factor=(parseInt(practica.duracion)||45)/45;
   return Math.round(precioHora(practica.vehiculo||'coche')*factor*100)/100;
 }
 function fmtEur(n){ return n.toFixed(2).replace('.',',')+' €'; }
@@ -911,6 +915,7 @@ function entrar(){
   if(esProfRole) irTab('profesor');
   else irTab('admin');
   iniciarTimer21();
+  iniciarDashboardListener();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1485,7 +1490,7 @@ function _doRenderAlumnos(fil, esAdminRol, showBilling, body){
   if(!fil.length){ body.innerHTML='<div class="empty"><div class="eico">👥</div><p>Sin alumnos</p></div>'; return; }
   body.innerHTML = fil.map(function(a){
     var ini = (a.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
-    var btns = (esAdmin||esProfRole)
+    var btns = (esAdmin||esProfRole||esJefeRole)
       ? '<button onclick="mostrarHistorialAlumno(\''+a.id+'\',\''+a.nombre+'\')" style="background:#0f2d6b;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer;margin-right:6px">📋 Historial</button>'
       + '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
         +'<button class="icon-btn del-btn" data-id="'+a.id+'" data-nom="'+(a.nombre||'')+'">🗑️</button>'
@@ -2714,6 +2719,18 @@ async function importarBackupJSON(file){
 
 
 // ── Timer backup automático 21:00 ─────────────────────────
+
+// Auto-refresh dashboard cuando hay nueva práctica hoy
+function iniciarDashboardListener(){
+  if(rol!=='admin'&&rol!=='jefe') return;
+  var hoyK=dKey(new Date());
+  db.collection('practicas_'+hoyK).onSnapshot(function(){
+    var dashTab=document.getElementById('tab-dashboard');
+    if(dashTab&&dashTab.classList.contains('active')){
+      renderDashboard();
+    }
+  });
+}
 function iniciarTimer21(){
   setInterval(function(){
     if(rol!=='admin') return;
