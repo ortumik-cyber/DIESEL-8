@@ -3079,16 +3079,14 @@ async function descargarHistorialExcel(alIds){
         // Firma como imagen en celda 8
         if(p.firmada&&p.firmaBase64){
           try{
-            var b64=p.firmaBase64.replace(/^data:image\/\w+;base64,/,'');
+            var b64=p.firmaBase64.indexOf(',')>-1?p.firmaBase64.split(',')[1]:p.firmaBase64;
             var imgId=wb.addImage({base64:b64,extension:'png'});
             ws.addImage(imgId,{
-              tl:{col:7,row:ri-1},
-              br:{col:8,row:ri},
-              editAs:'oneCell'
+              tl:{col:7,row:ri-1+0.1},
+              ext:{width:160,height:48}
             });
-            var sigCell=ws.getCell(ri,8);
-            sc(sigCell,{bg:bg});
-          }catch(eImg){ /* silenciar error imagen */ }
+            ws.getCell(ri,8).fill={type:'pattern',pattern:'solid',fgColor:{argb:C.GR1}};
+          }catch(eImg){ ws.getCell(ri,8).value='[img err]'; }
         } else {
           var nsCell=ws.getCell(ri,8);
           nsCell.value='Sin firma';
