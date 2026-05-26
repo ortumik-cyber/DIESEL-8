@@ -2972,7 +2972,13 @@ async function mostrarHistorialAlumno(alId, alNombre){
       html2+='<span style="font-size:12px;font-weight:700;color:#1a56db">'+fmtEur(calcImporte(p))+'</span>';
       html2+='</div>';
       // Datos adicionales
-      html2+='<div style="padding:8px 14px;font-size:11px;color:#64748b">Prof: <strong style="color:#0f172a">'+(p.profesorNombre||'—')+'</strong></div>';
+      html2+='<div style="padding:8px 14px;font-size:11px;color:#64748b;display:flex;justify-content:space-between;align-items:center">'
+        +'<span>Prof: <strong style="color:#0f172a">'+(p.profesorNombre||'—')+'</strong></span>'
+        +(!p.firmada&&(rol==='admin'||rol==='profesor')
+          ?'<button onclick="document.getElementById(\'modal-historial\').style.display=\'none\';abrirFirma(\''+p.fecha+'\',\''+p.id+'\',\''+a.nom+'\')" '
+            +'style="background:#1a56db;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✍️ Firmar</button>'
+          :'')
+        +'</div>';
       // Firma
       if(p.firmada&&p.firmaBase64){
         html2+='<div style="padding:8px 14px;border-top:1px solid #f1f5f9">';
