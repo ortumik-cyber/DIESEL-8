@@ -424,9 +424,9 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
           </div>
         </div>
                 <div class="cfg-sec">
-          <h3>💶 Precio por hora</h3>
+          <h3>💶 Precio por clase (45 min)</h3>
           <div class="card" style="padding:14px">
-            <p style="font-size:12px;color:#64748b;margin-bottom:12px">Para calcular la facturación en el Excel exportado</p>
+            <p style="font-size:12px;color:#64748b;margin-bottom:12px">Precio para clase de 45 min. Las clases de 30 min se facturan a 2/3 del precio.</p>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
               <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🚗 Coche €/clase</label><input type="number" id="precio-coche" min="1" max="999" placeholder="20" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
               <div><label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;text-transform:uppercase;color:#374151">🏍️ Moto €/clase</label><input type="number" id="precio-moto" min="1" max="999" placeholder="25" style="width:100%;padding:8px;border:1.5px solid #cbd5e1;border-radius:4px;font-size:18px;font-weight:700;text-align:center;font-family:inherit"></div>
@@ -442,6 +442,21 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <button class="btn-prim" style="width:100%;margin-bottom:12px" id="btn-pass-cambiar">Guardar contraseña Admin</button>
             <div class="fg"><label>Contraseña Jefe</label><input type="password" id="jefe-pass-input" placeholder="Mínimo 3 caracteres"></div>
             <button class="btn-prim" style="width:100%;background:#16a34a" id="btn-jefe-pass-guardar">Guardar contraseña Jefe</button>
+          </div>
+        </div>
+        <div class="cfg-sec">
+          <h3>📋 Historial de alumnos</h3>
+          <div class="card" style="padding:14px">
+            <p style="font-size:11px;color:#64748b;margin-bottom:10px">Selecciona uno o varios alumnos y descarga su historial completo con firmas en Excel.</p>
+            <div id="hist-al-checks" style="max-height:180px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-bottom:10px;background:#f8faff">
+              <p style="font-size:11px;color:#94a3b8;text-align:center">Cargando alumnos...</p>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <button class="btn-sec" style="flex:1;font-size:11px" id="btn-hist-all">Seleccionar todos</button>
+              <button class="btn-sec" style="flex:1;font-size:11px" id="btn-hist-none">Deseleccionar</button>
+            </div>
+            <button class="btn-prim" style="width:100%" id="btn-hist-excel">📊 Descargar Excel historial</button>
+            <p id="hist-excel-status" style="font-size:11px;margin-top:6px;color:#64748b;text-align:center"></p>
           </div>
         </div>
         <div class="cfg-sec">
@@ -2956,6 +2971,148 @@ async function mostrarHistorialAlumno(alId, alNombre){
     body.innerHTML='<div style="color:#dc2626;padding:20px">Error: '+e.message+'</div>';
   }
 }
+
+// ── Excel historial alumnos con firmas ──────────────────────
+async function descargarHistorialExcel(alIds){
+  if(!alIds||!alIds.length){ toast('Selecciona al menos un alumno'); return; }
+  var statusEl=document.getElementById('hist-excel-status');
+  if(statusEl) statusEl.textContent='⏳ Cargando historial...';
+  try{
+    await cargarLibrerias();
+    // Cargar todas las fechas usadas
+    var snapFechas=await db.collection('fechas_usadas').get();
+    var fechas=snapFechas.docs.map(function(d){return d.id;}).sort();
+    if(statusEl) statusEl.textContent='⏳ Leyendo '+fechas.length+' días...';
+
+    // Cargar prácticas de cada fecha para los alumnos seleccionados
+    var pracPorAl={};
+    alIds.forEach(function(id){ pracPorAl[id]=[]; });
+    await Promise.all(fechas.map(function(f){
+      return Promise.all(alIds.map(function(alId){
+        return db.collection('practicas_'+f).where('alumnoId','==',alId).get()
+          .then(function(s){s.docs.forEach(function(d){
+            pracPorAl[alId].push(Object.assign({id:d.id,fecha:f},d.data()));
+          });}).catch(function(){});
+      }));
+    }));
+
+    var wb=new ExcelJS.Workbook();
+    wb.creator='Autoescuela App';
+    wb.created=new Date();
+
+    function A(hex){ return 'FF'+hex.replace('#','').toUpperCase(); }
+    var C={NAV:A('#0F2D6B'),BLU:A('#1A56DB'),GRN:A('#16A34A'),RED:A('#DC2626'),
+           LBL:A('#DBEAFE'),LGN:A('#DCFCE7'),LRD:A('#FEE2E2'),
+           GR1:A('#F8FAFF'),WHT:A('#FFFFFF'),DRK:A('#0F172A'),SOF:A('#64748B')};
+    function sc(cell,opts){
+      opts=opts||{};
+      if(opts.bg) cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:opts.bg}};
+      cell.font={color:{argb:opts.fg||C.DRK},bold:!!opts.bold,size:opts.sz||9,name:'Arial'};
+      cell.border={top:{style:'thin',color:{argb:A('#E2E8F0')}},bottom:{style:'thin',color:{argb:A('#E2E8F0')}},
+                   left:{style:'thin',color:{argb:A('#E2E8F0')}},right:{style:'thin',color:{argb:A('#E2E8F0')}}};
+      cell.alignment={vertical:'middle',horizontal:opts.h||'center',wrapText:false};
+    }
+
+    for(var ai=0;ai<alIds.length;ai++){
+      var alId=alIds[ai];
+      var al=alumnos.find(function(a){return a.id===alId;});
+      var alNom=(al?al.nombre:alId).substring(0,28);
+      var pracs=pracPorAl[alId].sort(function(a,b){
+        return (a.fecha+' '+(a.hora||'')).localeCompare(b.fecha+' '+(b.hora||''));
+      });
+
+      var ws=wb.addWorksheet(alNom);
+      ws.views=[{state:'frozen',ySplit:3}];
+      ws.columns=[
+        {width:12},{width:8},{width:10},{width:8},
+        {width:10},{width:10},{width:10},{width:20}
+      ];
+
+      // Banner
+      ws.mergeCells(1,1,1,8);
+      var banCell=ws.getCell(1,1);
+      banCell.value='HISTORIAL COMPLETO — '+alNom.toUpperCase();
+      sc(banCell,{bg:C.NAV,fg:C.WHT,bold:true,sz:13,h:'left'});
+      ws.getRow(1).height=28;
+
+      // Resumen fila 2
+      var firmadas=pracs.filter(function(p){return p.firmada;}).length;
+      var sinFirmar=pracs.length-firmadas;
+      var impTotal=pracs.reduce(function(a,p){return a+calcImporte(p);},0);
+      ws.mergeCells(2,1,2,8);
+      var sumCell=ws.getCell(2,1);
+      sumCell.value='Total: '+pracs.length+' prácticas  |  Firmadas: '+firmadas+'  |  Sin firmar: '+sinFirmar+'  |  Importe: '+fmtEur(impTotal);
+      sc(sumCell,{bg:C.LBL,fg:C.NAV,bold:true,sz:10,h:'left'});
+      ws.getRow(2).height=20;
+
+      // Headers fila 3
+      var hdrs=['Fecha','Hora','Vehículo','Min','Importe','Firmada','Profesor','Firma'];
+      hdrs.forEach(function(h,i){
+        var c=ws.getCell(3,i+1);
+        c.value=h;
+        sc(c,{bg:C.BLU,fg:C.WHT,bold:true,sz:9});
+      });
+      ws.getRow(3).height=20;
+
+      // Filas de prácticas
+      for(var pi=0;pi<pracs.length;pi++){
+        var p=pracs[pi];
+        var ri=4+pi;
+        var bg=pi%2===0?C.GR1:C.WHT;
+        var imp=calcImporte(p);
+        var vIcon=p.vehiculo==='moto'?'🏍️ Moto':p.vehiculo==='camion'?'🚛 Camión':'🚗 Coche';
+
+        var vals=[p.fecha||'',p.hora||'',vIcon,parseInt(p.duracion)||45,
+                  imp,p.firmada?'✓ Firmada':'✗ Sin firmar',p.profesorNombre||'—',''];
+        var fgs=[C.SOF,C.BLU,C.NAV,C.SOF,C.BLU,p.firmada?C.GRN:C.RED,C.SOF,C.SOF];
+        var bgs=[bg,bg,bg,bg,bg,p.firmada?C.LGN:C.LRD,bg,bg];
+
+        vals.forEach(function(v,ci){
+          if(ci===7) return; // firma → imagen
+          var cell=ws.getCell(ri,ci+1);
+          cell.value=v;
+          sc(cell,{bg:bgs[ci],fg:fgs[ci],bold:ci===4,sz:9,h:ci===2||ci===6?'left':'center'});
+          if(ci===4){ cell.numFmt='"€"#,##0.00'; }
+        });
+        ws.getRow(ri).height=55;
+
+        // Firma como imagen en celda 8
+        if(p.firmada&&p.firmaBase64){
+          try{
+            var b64=p.firmaBase64.replace(/^data:image\/\w+;base64,/,'');
+            var imgId=wb.addImage({base64:b64,extension:'png'});
+            ws.addImage(imgId,{
+              tl:{col:7,row:ri-1},
+              br:{col:8,row:ri},
+              editAs:'oneCell'
+            });
+            var sigCell=ws.getCell(ri,8);
+            sc(sigCell,{bg:bg});
+          }catch(eImg){ /* silenciar error imagen */ }
+        } else {
+          var nsCell=ws.getCell(ri,8);
+          nsCell.value='Sin firma';
+          sc(nsCell,{bg:C.LRD,fg:C.RED,sz:8});
+        }
+      }
+    }
+
+    var buf=await wb.xlsx.writeBuffer();
+    var hoy=dKey(new Date());
+    var fname='Historial_Alumnos_'+hoy+'.xlsx';
+    var blob=new Blob([new Uint8Array(buf)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a'); a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    if(statusEl) statusEl.textContent='✅ Descargado: '+fname;
+    toast('✅ Historial descargado');
+  }catch(e){
+    console.error(e);
+    if(statusEl) statusEl.textContent='❌ Error: '+e.message;
+    toast('❌ Error historial: '+e.message);
+  }
+}
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
   try{ await cargarLibrerias(); }
@@ -3019,6 +3176,35 @@ document.getElementById('btn-backup-importar').onclick=function(){document.getEl
 document.getElementById('backup-file-input').onchange=function(e){
   if(e.target.files[0]) importarBackupJSON(e.target.files[0]);
 };
+
+// ── Historial Excel alumnos desde Config ─────────────────────
+function renderHistAlChecks(){
+  var div=document.getElementById('hist-al-checks');
+  if(!div) return;
+  if(!alumnos.length){ div.innerHTML='<p style="font-size:11px;color:#94a3b8;text-align:center">Sin alumnos</p>'; return; }
+  div.innerHTML=alumnos.slice().sort(function(a,b){return(a.nombre||'').localeCompare(b.nombre||'');})
+    .map(function(al){
+      return '<label style="display:flex;align-items:center;gap:8px;padding:5px 4px;cursor:pointer;font-size:12px">'
+        +'<input type="checkbox" class="hist-al-cb" value="'+al.id+'" style="width:15px;height:15px"> '
+        +al.nombre+'</label>';
+    }).join('');
+}
+var _histBtnEl=document.getElementById('btn-hist-excel');
+var _histAllEl=document.getElementById('btn-hist-all');
+var _histNoneEl=document.getElementById('btn-hist-none');
+if(_histBtnEl) _histBtnEl.onclick=function(){
+  var ids=Array.from(document.querySelectorAll('.hist-al-cb:checked')).map(function(el){return el.value;});
+  descargarHistorialExcel(ids);
+};
+if(_histAllEl) _histAllEl.onclick=function(){
+  document.querySelectorAll('.hist-al-cb').forEach(function(cb){cb.checked=true;});
+};
+if(_histNoneEl) _histNoneEl.onclick=function(){
+  document.querySelectorAll('.hist-al-cb').forEach(function(cb){cb.checked=false;});
+};
+// Cargar checks cuando se abre Config
+var _cfgTabBtn=document.querySelector('[data-tab="config"]');
+if(_cfgTabBtn) _cfgTabBtn.addEventListener('click',function(){ setTimeout(renderHistAlChecks,300); });
 // ── Eventos Config ────────────────────────────────────────────
 document.getElementById('btn-azure-guardar').onclick = async function(){
   var clientId = document.getElementById('azure-client-id').value.trim();
