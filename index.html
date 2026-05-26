@@ -406,9 +406,15 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <p id="od-status" style="font-size:11px;color:#64748b;margin-top:8px;text-align:center"></p>
             <div style="border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px">
               <p style="font-size:11px;font-weight:700;color:#0f2d6b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">💾 Exportar / Importar datos</p>
-              <button class="btn-prim" style="width:100%;margin-bottom:6px" id="btn-backup-ahora">📤 Backup datos → DIESEL BACKUP</button>
-              <input type="file" id="backup-file-input" accept=".json" style="display:none">
-              <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Importar datos desde backup</button>
+              <p style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:6px;text-transform:uppercase">Exportar backup completo</p>
+              <button class="btn-prim" style="width:100%;margin-bottom:6px" id="btn-backup-excel">📊 Excel alumnos → DIESEL BACKUP</button>
+              <button class="btn-sec" style="width:100%;margin-bottom:10px" id="btn-backup-ahora">📋 JSON datos → DIESEL BACKUP</button>
+              <button class="btn-prim" style="width:100%;margin-bottom:10px;background:#16a34a" id="btn-backup-todo">📤 Exportar TODO (Excel + JSON)</button>
+              <div style="border-top:1px solid #e2e8f0;padding-top:10px">
+                <p style="font-size:10px;font-weight:700;color:#64748b;margin-bottom:6px;text-transform:uppercase">Restaurar</p>
+                <input type="file" id="backup-file-input" accept=".json" style="display:none">
+                <button class="btn-sec" style="width:100%" id="btn-backup-importar">📥 Importar desde backup JSON</button>
+              </div>
               <p id="backup-import-status" style="font-size:11px;margin-top:6px;color:#64748b"></p>
             </div>
           </div>
@@ -2717,10 +2723,138 @@ function iniciarTimer21(){
         localStorage.setItem(key,'1');
         toast('⏰ Backup automático 21:00 iniciando...');
         exportarExcelOD(true);
-        setTimeout(function(){ exportarBackupJSON(); }, 30000);
+        setTimeout(function(){ exportarBackupExcel(); }, 20000);
+        setTimeout(function(){ exportarBackupJSON(); }, 40000);
       }
     }
   }, 60000);
+}
+
+// ── Backup Excel alumnos completo → DIESEL BACKUP ─────────
+async function exportarBackupExcel(){
+  try{
+    toast('⏳ Generando Excel backup...');
+    await cargarLibrerias();
+    var wb=new ExcelJS.Workbook();
+    wb.creator='Autoescuela Diesel App';
+    wb.created=new Date();
+    var hoy=new Date();
+    var YEAR=String(hoy.getFullYear());
+    // Recargar alumnos frescos
+    var snapAl=await db.collection('alumnos').get();
+    var alFresh=snapAl.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+    var snapPr=await db.collection('profesores').get();
+    var prFresh=snapPr.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+
+    // Función celda con estilo
+    function sc(cell,bg,fg,bold,sz){
+      if(bg) cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+bg.replace('#','')}};
+      cell.font={color:{argb:'FF'+(fg||'000000').replace('#','')},bold:!!bold,size:sz||10,name:'Arial'};
+      cell.border={top:{style:'thin',color:{argb:'FFE2E8F0'}},bottom:{style:'thin',color:{argb:'FFE2E8F0'}},
+                   left:{style:'thin',color:{argb:'FFE2E8F0'}},right:{style:'thin',color:{argb:'FFE2E8F0'}}};
+      cell.alignment={vertical:'middle',horizontal:'center',wrapText:true};
+    }
+    function hdr(ws,r,c,txt,bg,fg){ var cell=ws.getCell(r,c); cell.value=txt; sc(cell,bg||'#1A56DB',fg||'#FFFFFF',true,9); }
+
+    // ── Hoja 1: ALUMNOS ──────────────────────────────────────
+    var wsA=wb.addWorksheet('👥 Alumnos');
+    wsA.columns=[{width:24},{width:14},{width:20},{width:14},{width:14},{width:14},{width:14},{width:14}];
+    var hdrBg='#0F2D6B', hdrFg='#FFFFFF';
+    var hdrsA=['Nombre','Teléfono','Carnet','Pagado May','Pagado Abr','Pagado Mar','Pagado Feb','Pagado Ene'];
+    hdrsA.forEach(function(h,i){ hdr(wsA,1,i+1,h,hdrBg,hdrFg); });
+    wsA.getRow(1).height=24;
+    alFresh.sort(function(a,b){return(a.nombre||'').localeCompare(b.nombre||'');});
+    alFresh.forEach(function(al,ri){
+      var bg=ri%2===0?'#F8FAFF':'#FFFFFF';
+      var mes=YEAR+'-'+(hoy.getMonth()<9?'0':'')+(hoy.getMonth()+1);
+      // Últimos 5 meses
+      var meses=[];
+      for(var m=0;m<5;m++){
+        var f=new Date(hoy.getFullYear(),hoy.getMonth()-m,1);
+        meses.push(f.getFullYear()+'-'+(f.getMonth()<9?'0':'')+(f.getMonth()+1));
+      }
+      var row=[al.nombre||'',al.telefono||'',al.carnet||''];
+      meses.forEach(function(mk){ row.push((al.pagos&&al.pagos[mk])?al.pagos[mk]:0); });
+      row.forEach(function(v,ci){
+        var cell=wsA.getCell(ri+2,ci+1);
+        cell.value=v;
+        sc(cell,bg,ci>=3?(v>0?'#16A34A':'#DC2626'):'#0F172A',ci>=3,10);
+        if(ci>=3) cell.numFmt='"€"#,##0.00';
+        cell.alignment={vertical:'middle',horizontal:ci===0?'left':'center',wrapText:false};
+      });
+      wsA.getRow(ri+2).height=18;
+    });
+
+    // ── Hoja 2: PRÁCTICAS (últimos 90 días) ───────────────────
+    var wsP=wb.addWorksheet('📅 Prácticas');
+    wsP.columns=[{width:12},{width:6},{width:22},{width:20},{width:10},{width:8},{width:10},{width:10}];
+    var hdrsP=['Fecha','Hora','Alumno','Profesor','Vehículo','Min','Firmada','Importe'];
+    hdrsP.forEach(function(h,i){ hdr(wsP,1,i+1,h,hdrBg,hdrFg); });
+    wsP.getRow(1).height=24;
+    // Cargar 90 días
+    var diasBk=[]; var h2=new Date();
+    for(var d=0;d<90;d++){ var fd=new Date(h2); fd.setDate(h2.getDate()-d); diasBk.push(dKey(fd)); }
+    var snapsPrac=await Promise.all(diasBk.map(function(f){
+      return db.collection('practicas_'+f).get()
+        .then(function(s){return s.docs.map(function(d2){return Object.assign({id:d2.id},d2.data(),{fecha:f});});})
+        .catch(function(){return [];});
+    }));
+    var todasPrac=[];
+    snapsPrac.forEach(function(a){a.forEach(function(p){if(p&&p.hora)todasPrac.push(p);});});
+    todasPrac.sort(function(a,b){return(b.fecha+b.hora).localeCompare(a.fecha+a.hora);});
+    var pc=getPrecios();
+    todasPrac.forEach(function(p,ri){
+      var bg=ri%2===0?'#F8FAFF':'#FFFFFF';
+      var imp=calcImporte(p);
+      var vals=[p.fecha||'',p.hora||'',p.alumnoNombre||'',p.profesorNombre||'',
+                p.vehiculo||'coche',p.duracion||45,p.firmada?'✓':'✗',imp];
+      vals.forEach(function(v,ci){
+        var cell=wsP.getCell(ri+2,ci+1);
+        cell.value=v;
+        var fg=ci===6?(p.firmada?'#16A34A':'#DC2626'):'#0F172A';
+        if(ci===7){ fg='#1A56DB'; cell.numFmt='"€"#,##0.00'; }
+        sc(cell,bg,fg,ci===7,10);
+        cell.alignment={vertical:'middle',horizontal:ci===2||ci===3?'left':'center'};
+      });
+      wsP.getRow(ri+2).height=16;
+    });
+
+    // ── Hoja 3: PROFESORES ───────────────────────────────────
+    var wsPr=wb.addWorksheet('👨‍🏫 Profesores');
+    wsPr.columns=[{width:24},{width:14},{width:20}];
+    ['Nombre','Teléfono','Especialidad'].forEach(function(h,i){ hdr(wsPr,1,i+1,h,hdrBg,hdrFg); });
+    prFresh.forEach(function(pr,ri){
+      var bg=ri%2===0?'#F8FAFF':'#FFFFFF';
+      [pr.nombre||'',pr.telefono||'',pr.especialidad||''].forEach(function(v,ci){
+        var cell=wsPr.getCell(ri+2,ci+1); cell.value=v;
+        sc(cell,bg,'#0F172A',false,10);
+        cell.alignment={vertical:'middle',horizontal:'left'};
+      });
+      wsPr.getRow(ri+2).height=18;
+    });
+
+    var buf=await wb.xlsx.writeBuffer();
+    var fname=getNombre().replace(/\s+/g,'_')+'_backup_alumnos_'+dKey(hoy)+'.xlsx';
+
+    // Subir a OneDrive DIESEL BACKUP
+    var token=await getODToken();
+    if(token){
+      var path='DIESEL/DIESEL%20BACKUP/'+YEAR+'/'+encodeURIComponent(fname);
+      var resp=await fetch('https://graph.microsoft.com/v1.0/me/drive/root:/'+path+':/content?@microsoft.graph.conflictBehavior=replace',{
+        method:'PUT',
+        headers:{'Authorization':'Bearer '+token,'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},
+        body:new Blob([new Uint8Array(buf)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
+      });
+      if(resp.ok){ toast('✅ Excel backup guardado: DIESEL BACKUP/'+YEAR+'/'+fname); return true; }
+      else{ toast('❌ Error Excel backup: '+resp.status); return false; }
+    } else {
+      // Descarga local
+      var url=URL.createObjectURL(new Blob([new Uint8Array(buf)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+      var a=document.createElement('a'); a.href=url; a.download=fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      toast('✅ Excel backup descargado localmente'); return true;
+    }
+  }catch(e){ console.error(e); toast('❌ Error Excel backup: '+e.message); return false; }
 }
 // ── Exportar a OneDrive ───────────────────────────────────────
 async function exportarExcelOD(silencioso){
@@ -2775,7 +2909,12 @@ function checkAutoExport(){
 
 
 // ── Handlers backup ────────────────────────────────────────
+document.getElementById('btn-backup-excel').onclick=function(){exportarBackupExcel();};
 document.getElementById('btn-backup-ahora').onclick=function(){exportarBackupJSON();};
+document.getElementById('btn-backup-todo').onclick=function(){
+  exportarBackupExcel();
+  setTimeout(function(){ exportarBackupJSON(); }, 20000);
+};
 document.getElementById('btn-backup-importar').onclick=function(){document.getElementById('backup-file-input').click();};
 document.getElementById('backup-file-input').onchange=function(e){
   if(e.target.files[0]) importarBackupJSON(e.target.files[0]);
