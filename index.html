@@ -332,8 +332,8 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
         </div>
       </div>
       <!-- Vista del profesor: tarjetas de alumnos -->
-      <div style="padding:0 14px 10px;border-bottom:1px solid #e2e8f0">
-        <button onclick="mostrarPendientesFirma()" style="width:100%;padding:10px;background:#fee2e2;color:#dc2626;border:1px solid #dc2626;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer" id="btn-ver-pendientes">✍️ Ver pendientes de firma (7 días)</button>
+      <div style="padding:6px 0 10px">
+        <button onclick="abrirSheet('sh-pendientes-firma');cargarPendientesFirma();" style="width:100%;padding:10px 14px;background:#fee2e2;color:#dc2626;border:2px solid #dc2626;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✍️ Pendientes de firma — últimos 7 días</button>
       </div>
       <div id="prac-list"></div>
       <!-- Lista CRUD profesores (solo admin) -->
@@ -343,19 +343,6 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       </div>
     </div>
 
-    <!-- Sheet pendientes de firma -->
-    <div id="sh-pendientes-firma" class="sheet hidden">
-      <div class="sheet-hdr">
-        <span>✍️ Pendiente de firma — 7 días</span>
-        <button onclick="cerrarSheet('sh-pendientes-firma')" class="btn-close">✕</button>
-      </div>
-      <div style="padding:4px 14px;background:#f8faff;border-bottom:1px solid #e2e8f0">
-        <button onclick="cargarPendientesFirma2()" style="font-size:11px;padding:4px 12px;background:#1a56db;color:#fff;border:none;border-radius:4px;cursor:pointer;margin:6px 0">🔄 Actualizar</button>
-      </div>
-      <div id="pend-firma-body" style="padding:14px;overflow-y:auto;max-height:70vh">
-        <p style="text-align:center;color:#94a3b8;padding:20px">Pulsa Actualizar para cargar</p>
-      </div>
-    </div>
     <!-- ALUMNOS -->
     <div id="tab-alumnos" class="hidden">
       <input class="search-inp" type="search" id="search-al" placeholder="Buscar por nombre o teléfono...">
@@ -473,6 +460,15 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             </div>
             <button class="btn-prim" style="width:100%" id="btn-hist-excel">📊 Descargar Excel historial</button>
             <p id="hist-excel-status" style="font-size:11px;margin-top:6px;color:#64748b;text-align:center"></p>
+          </div>
+        </div>
+        <div class="cfg-sec">
+          <h3>🔔 Alertas de acceso</h3>
+          <div class="card" style="padding:14px">
+            <p style="font-size:11px;color:#64748b;margin-bottom:8px">Webhook Make.com → recibe email cuando alguien abra la app.</p>
+            <div class="fg"><label>URL Webhook</label><input type="url" id="cfg-webhook" placeholder="https://hook.eu1.make.com/..."></div>
+            <button class="btn-prim" style="width:100%;margin-bottom:6px" onclick="var v=document.getElementById('cfg-webhook').value.trim();if(v){localStorage.setItem('diesel_webhook_acceso',v);alert('Guardado');}">Guardar webhook</button>
+            <button class="btn-sec" style="width:100%;font-size:11px" onclick="(async function(){var s=await db.collection('accesos').orderBy('ts','desc').limit(10).get();alert('Accesos:\n'+s.docs.map(function(d){var a=d.data();return a.fecha+' | '+a.zona+' | '+a.pantalla;}).join('\n'));}())">📋 Ver últimos accesos</button>
           </div>
         </div>
         <div class="cfg-sec">
@@ -3277,6 +3273,8 @@ document.getElementById('btn-od-connect').onclick = function(){
 var _savedClientId = getAzureClientId();
 if(_savedClientId){
   var _azEl = document.getElementById('azure-client-id');
+  var _whEl3 = document.getElementById('cfg-webhook');
+  if(_whEl3){ var _whS=localStorage.getItem('diesel_webhook_acceso'); if(_whS) _whEl3.value=_whS; }
   if(_azEl) _azEl.value = _savedClientId;
   var _hintSaved=localStorage.getItem('diesel_od_hint')||'';
   var _hintEl=document.getElementById('od-email-hint');
@@ -3292,60 +3290,6 @@ entrar = function(){
     checkAutoExport();
   }, 1000);
 };
-
-// ── Log de acceso (5s después de cargar) ─────────────────────
-setTimeout(function(){
-  try{
-    if(typeof db==='undefined') return;
-    var info={ts:new Date().toISOString(),fecha:new Date().toLocaleString('es-ES'),
-      ua:navigator.userAgent.slice(0,200),zona:Intl.DateTimeFormat().resolvedOptions().timeZone,
-      pantalla:screen.width+'x'+screen.height};
-    db.collection('accesos').add(info).catch(function(){});
-    var wh=localStorage.getItem('diesel_webhook_acceso');
-    if(wh) fetch(wh,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mensaje:'Nuevo acceso: '+info.fecha+' | '+info.zona+' | '+info.pantalla})
-    }).catch(function(){});
-  }catch(e){}
-}, 5000);
-
-// ── Botón "Pendiente de firma" en pestaña Profesor ───────────
-function mostrarPendientesFirma(){
-  var sheet=document.getElementById('sh-pendientes-firma');
-  if(!sheet){ alert('Error: sheet no encontrada'); return; }
-  abrirSheet('sh-pendientes-firma');
-  cargarPendientesFirma2();
-}
-async function cargarPendientesFirma2(){
-  var el=document.getElementById('pend-firma-body');
-  if(!el) return;
-  el.innerHTML='<p style="text-align:center;padding:20px;color:#64748b">⏳ Cargando...</p>';
-  try{
-    var dias=[];
-    for(var i=0;i<7;i++){var f=new Date();f.setDate(f.getDate()-i);dias.push(dKey(f));}
-    var pends=[];
-    await Promise.all(dias.map(function(fecha){
-      return db.collection('practicas_'+fecha).get()
-        .then(function(s){s.docs.forEach(function(d){
-          var p=Object.assign({id:d.id,fecha:fecha},d.data());
-          if(!p.firmada&&(rol==='admin'||p.profesorNombre===profSel)) pends.push(p);
-        });}).catch(function(){});
-    }));
-    pends.sort(function(a,b){return(b.fecha+' '+(b.hora||'')).localeCompare(a.fecha+' '+(a.hora||''));});
-    if(!pends.length){
-      el.innerHTML='<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:8px">Sin pendientes</p></div>';
-      return;
-    }
-    el.innerHTML=pends.map(function(p,i){
-      var nom=(p.alumnoNombre||'').replace(/\/g,'\\').replace(/'/g,"\'");
-      return '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:'+(i%2===0?'#f8faff':'#fff')+'">'
-        +'<div><div style="font-size:13px;font-weight:700;color:#0f172a">'+(p.alumnoNombre||'—')+'</div>'
-        +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+p.fecha+' '+( p.hora||'')+' · '+(p.vehiculo||'')+' '+( p.duracion||45)+'min</div></div>'
-        +'<button onclick="cerrarSheet('sh-pendientes-firma');setTimeout(function(){abrirFirma(''+p.fecha+'',''+p.id+'',''+nom+'');},200)" '
-        +'style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer">✍️ Firmar</button>'
-        +'</div>';
-    }).join('');
-  }catch(e){ el.innerHTML='<p style="color:#dc2626;padding:16px">Error: '+e.message+'</p>'; }
-}
 </script>
 
 <!-- Modal historial alumno con firmas -->
@@ -3371,5 +3315,100 @@ async function cargarPendientesFirma2(){
   .no-print{ display:none !important; }
 }
 </style>
+
+<!-- Sheet pendientes de firma -->
+<div id="sh-pendientes-firma" class="sheet hidden">
+  <div class="sheet-hdr">
+    <span style="font-weight:700">✍️ Pendientes de firma — 7 días</span>
+    <button onclick="cerrarSheet('sh-pendientes-firma')" class="btn-close">✕</button>
+  </div>
+  <div style="padding:8px 14px;background:#f8faff;border-bottom:1px solid #e2e8f0">
+    <button onclick="cargarPendientesFirma()" style="width:100%;padding:8px;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Actualizar lista</button>
+  </div>
+  <div id="pend-firma-body" style="padding:14px;overflow-y:auto;max-height:75vh">
+    <p style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Pulsa Actualizar para ver pendientes</p>
+  </div>
+</div>
+
+<script>
+// ── Pendientes de firma ────────────────────────────────────
+function cargarPendientesFirma(){
+  var el = document.getElementById('pend-firma-body');
+  if(!el) return;
+  el.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b">⏳ Cargando...</p>';
+  if(typeof db === 'undefined' || typeof dKey === 'undefined'){
+    el.innerHTML = '<p style="color:#dc2626;padding:16px">Error: base de datos no disponible</p>';
+    return;
+  }
+  var dias = [];
+  for(var i = 0; i < 7; i++){
+    var f = new Date();
+    f.setDate(f.getDate() - i);
+    dias.push(dKey(f));
+  }
+  var pendientes = [];
+  var promesas = dias.map(function(fecha){
+    return db.collection('practicas_' + fecha).get()
+      .then(function(snap){
+        snap.docs.forEach(function(d){
+          var p = Object.assign({id: d.id, fecha: fecha}, d.data());
+          if(!p.firmada) pendientes.push(p);
+        });
+      }).catch(function(){ /* ignorar fechas sin datos */ });
+  });
+  Promise.all(promesas).then(function(){
+    pendientes.sort(function(a, b){
+      return (b.fecha + ' ' + (b.hora||'')).localeCompare(a.fecha + ' ' + (a.hora||''));
+    });
+    if(!pendientes.length){
+      el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:10px">Sin pendientes de firma</p></div>';
+      return;
+    }
+    var html2 = '';
+    pendientes.forEach(function(p, i){
+      var bg = i % 2 === 0 ? '#f8faff' : '#ffffff';
+      var vIcon = p.vehiculo === 'moto' ? '🏍️' : p.vehiculo === 'camion' ? '🚛' : '🚗';
+      var nom = (p.alumnoNombre || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      html2 += '<div style="background:' + bg + ';border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">'
+        + '<div>'
+          + '<div style="font-size:13px;font-weight:700;color:#0f172a">' + (p.alumnoNombre||'—') + '</div>'
+          + '<div style="font-size:11px;color:#64748b;margin-top:3px">' + p.fecha + ' · ' + (p.hora||'') + ' · ' + vIcon + ' ' + (p.duracion||45) + 'min · ' + (p.profesorNombre||'') + '</div>'
+        + '</div>'
+        + '<button onclick="cerrarSheet(\'sh-pendientes-firma\');setTimeout(function(){abrirFirma(\'' + p.fecha + '\',\'' + p.id + '\',\'' + nom + '\');},150);" '
+          + 'style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">✍️ Firmar</button>'
+        + '</div>';
+    });
+    el.innerHTML = html2;
+  });
+}
+
+// ── Log de acceso (10s después, no bloquea nada) ───────────
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    try{
+      if(typeof db === 'undefined') return;
+      var info = {
+        ts: new Date().toISOString(),
+        fecha: new Date().toLocaleString('es-ES'),
+        zona: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        pantalla: screen.width + 'x' + screen.height,
+        ua: navigator.userAgent.slice(0, 150)
+      };
+      db.collection('accesos').add(info).catch(function(){});
+      var wh = localStorage.getItem('diesel_webhook_acceso');
+      if(wh){
+        fetch(wh, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            mensaje: 'Acceso app: ' + info.fecha + ' | ' + info.zona + ' | ' + info.pantalla
+          })
+        }).catch(function(){});
+      }
+    }catch(e){}
+  }, 10000);
+});
+</script>
+
 </body>
 </html>
