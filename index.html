@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://ortumik-cyber.github.io; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://alcdn.msauth.net https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://graph.microsoft.com https://login.microsoftonline.com https://alcdn.msauth.net https://hook.eu1.make.com https://hook.eu2.make.com; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'self';">
-<meta name="referrer" content="strict-origin-when-cross-origin">
+
+
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Diesel">
@@ -1468,7 +1468,7 @@ function renderDashboard(){
             :'<span style="background:'+G+';color:#fff;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700">✓ Pagado</span>')
           :'<span style="font-size:12px;font-weight:700;color:'+(a.pend>0?R:G)+'">'+fmtEur(a.pend)+'</span>';
         return '<div style="display:grid;grid-template-columns:1fr auto auto auto;padding:10px 12px;background:'+bg+';border-top:1px solid #e2e8f0;align-items:center;gap:8px">'
-          +'<span style="font-size:12px;font-weight:600">'+a.nom+'</span>'
+          +'<span style="font-size:12px;font-weight:600">'+alNombre+'</span>'
           +'<span style="font-size:12px;font-weight:700;color:'+B+';text-align:right">'+fmtEur(a.fac)+'</span>'
           +'<span style="font-size:12px;font-weight:700;color:'+G+';text-align:right">'+fmtEur(a.pag)+'</span>'
           +'<div style="text-align:right">'+accion+'</div>'
@@ -3007,7 +3007,7 @@ async function mostrarHistorialAlumno(alId, alNombre){
       html2+='<div style="padding:8px 14px;font-size:11px;color:#64748b;display:flex;justify-content:space-between;align-items:center">'
         +'<span>Prof: <strong style="color:#0f172a">'+(p.profesorNombre||'—')+'</strong></span>'
         +(!p.firmada&&(rol==='admin'||rol==='profesor')
-          ?'<button onclick="document.getElementById(\'modal-historial\').style.display=\'none\';abrirFirma(\''+p.fecha+'\',\''+p.id+'\',\''+a.nom+'\')" '
+          ?'<button onclick="document.getElementById(\'modal-historial\').style.display=\'none\';abrirFirma(\''+p.fecha+'\',\''+p.id+'\',\''+alNombre+'\')" '
             +'style="background:#1a56db;color:#fff;border:none;border-radius:5px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✍️ Firmar</button>'
           :'')
         +'</div>';
