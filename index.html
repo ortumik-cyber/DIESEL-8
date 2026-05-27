@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://ortumik-cyber.github.io; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://alcdn.msauth.net https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://graph.microsoft.com https://login.microsoftonline.com https://alcdn.msauth.net https://hook.eu1.make.com https://hook.eu2.make.com; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'self';">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Diesel">
@@ -12,6 +14,7 @@
 <title>Autoescuela Diesel</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:14px;color:#0f172a;background:#e8eef7}
@@ -688,6 +691,7 @@ firebase.initializeApp({
   appId:             "1:434289165209:web:159f1e9c9e62f7e84ec908"
 });
 var db = firebase.firestore();
+  firebase.auth().signInAnonymously().catch(function(e){ console.warn('anon-auth:',e.code); });
 
 // ══════════════════════════════════════════════════════════════
 // CONSTANTES
@@ -1076,8 +1080,12 @@ function renderCalendario(prs){
         ? '<span style="font-size:9px;opacity:.6;margin-left:2px">30\'</span>' : '';
       var del = esAdmin
         ? '<span class="chip-x" data-id="'+p.id+'" data-hora="'+hora+'" data-nom="'+(p.alumnoNombre||'')+'">✕</span>' : '';
-      return '<span class="chip" style="background:'+c.bg+';color:'+c.tx+';border-color:'+c.bd+'">'
-        +vico+' '+nom+(profNom?' <span style="opacity:.65;font-size:10px">'+profNom+'</span>':'')+durTag+del+'</span>';
+      var firmaIco = (!p.firmada && (esAdmin||esProfRole))
+        ? ' <span style="font-size:9px;opacity:.8">✍️</span>' : (p.firmada?' <span style="font-size:9px;opacity:.6">✓</span>':'');
+      var chipStyle = 'background:'+c.bg+';color:'+c.tx+';border-color:'+c.bd
+        +((!p.firmada&&(esAdmin||esProfRole))?';cursor:pointer;border-style:dashed':';cursor:default');
+      return '<span class="chip" style="'+chipStyle+'" data-id="'+p.id+'" data-nom="'+(p.alumnoNombre||'')+'" data-firmada="'+(p.firmada?'1':'0')+'">'
+        +vico+' '+nom+(profNom?' <span style="opacity:.65;font-size:10px">'+profNom+'</span>':'')+durTag+firmaIco+del+'</span>';
     }).join('');
     var addBtn = esAdmin ? '<button class="btn-add" data-hora="'+hora+'">+</button>' : '';
     row.innerHTML = '<div class="cal-hora">'+hora+'</div><div class="cal-slot">'+chips+addBtn+'</div>';
@@ -1089,6 +1097,18 @@ function renderCalendario(prs){
       delPrac(x.dataset.id, x.dataset.hora, x.dataset.nom);
     };
   });
+  // Click en chip → firma (Admin y Profesor) si no está firmada
+  if(esAdmin||esProfRole){
+    body.querySelectorAll('.chip').forEach(function(chip){
+      if(chip.dataset.firmada==='0'){
+        chip.onclick = function(e){
+          if(e.target.classList.contains('chip-x')) return;
+          var fechaCal = dKey(currentDate||new Date());
+          abrirFirma(fechaCal, chip.dataset.id, chip.dataset.nom);
+        };
+      }
+    });
+  }
   body.querySelectorAll('.btn-add').forEach(function(btn){
     btn.onclick = function(){ abrirNuevaPrac(btn.dataset.hora); };
   });
@@ -1522,7 +1542,7 @@ function _doRenderAlumnos(fil, esAdminRol, showBilling, body){
   if(!fil.length){ body.innerHTML='<div class="empty"><div class="eico">👥</div><p>Sin alumnos</p></div>'; return; }
   body.innerHTML = fil.map(function(a){
     var ini = (a.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
-    var btns = (esAdmin||esProfRole||esJefeRole)
+    var btns = (esAdmin||esProfRole||rol==='jefe')
       ? '<button onclick="mostrarHistorialAlumno(\''+a.id+'\',\''+a.nombre+'\')" style="background:#0f2d6b;color:#fff;border:none;border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer;margin-right:6px">📋 Historial</button>'
       + '<button class="icon-btn edit-btn" data-id="'+a.id+'">✏️</button>'
         +'<button class="icon-btn del-btn" data-id="'+a.id+'" data-nom="'+(a.nombre||'')+'">🗑️</button>'
@@ -2934,7 +2954,7 @@ async function mostrarHistorialAlumno(alId, alNombre){
 
   try{
     // Cargar todas las fechas usadas
-    var snapFechas=await db.collection('fechas_usadas').orderBy('fecha','desc').get();
+    var snapFechas=await db.collection('fechas_usadas').get();
     var fechas=snapFechas.docs.map(function(d){return d.id;});
 
     // Cargar prácticas de cada fecha y filtrar por alumnoId
