@@ -465,8 +465,8 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <p id="hist-excel-status" style="font-size:11px;margin-top:6px;color:#64748b;text-align:center"></p>
           </div>
         </div>
-        <div class="cfg-sec">
-          <h3>🔔 Alertas de acceso</h3>
+        <div class="cfg-sec" id="cfg-sec-webhook" style="display:none">
+          <h3>🔔 Alertas de acceso (Instalador)</h3>
           <div class="card" style="padding:14px">
             <p style="font-size:11px;color:#64748b;margin-bottom:8px">Webhook Make.com → recibe email cuando alguien abra la app.</p>
             <div class="fg"><label>URL Webhook</label><input type="url" id="cfg-webhook" placeholder="https://hook.eu1.make.com/..."></div>
@@ -485,7 +485,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       </div>
       
         <div class="card" style="padding:14px">
-          <p style="font-size:13px">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
+          <p style="font-size:13px;cursor:pointer" ondblclick="document.getElementById('cfg-sec-webhook').style.display=document.getElementById('cfg-sec-webhook').style.display==='none'?'':' none'">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
           <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
         </div>
       </div>
@@ -1468,7 +1468,7 @@ function renderDashboard(){
             :'<span style="background:'+G+';color:#fff;border-radius:5px;padding:5px 10px;font-size:11px;font-weight:700">✓ Pagado</span>')
           :'<span style="font-size:12px;font-weight:700;color:'+(a.pend>0?R:G)+'">'+fmtEur(a.pend)+'</span>';
         return '<div style="display:grid;grid-template-columns:1fr auto auto auto;padding:10px 12px;background:'+bg+';border-top:1px solid #e2e8f0;align-items:center;gap:8px">'
-          +'<span style="font-size:12px;font-weight:600">'+alNombre+'</span>'
+          +'<span style="font-size:12px;font-weight:600">'+a.nom+'</span>'
           +'<span style="font-size:12px;font-weight:700;color:'+B+';text-align:right">'+fmtEur(a.fac)+'</span>'
           +'<span style="font-size:12px;font-weight:700;color:'+G+';text-align:right">'+fmtEur(a.pag)+'</span>'
           +'<div style="text-align:right">'+accion+'</div>'
