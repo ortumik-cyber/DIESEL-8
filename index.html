@@ -489,7 +489,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       </div>
       
         <div class="card" style="padding:14px">
-          <p style="font-size:13px;cursor:pointer;user-select:none" ondblclick="toggleInstaladorSection()" title="Doble clic para acceso instalador">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
+          <p style="font-size:13px;cursor:pointer;user-select:none" ondblclick="toggleInstaladorSection()" title="Doble clic: acceso instalador">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong> <span style="font-size:9px;color:#cbd5e1;letter-spacing:.5px">●●</span></p>
           <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
         </div>
       </div>
@@ -3405,17 +3405,15 @@ function toggleInstaladorSection(){
 function cargarPendientesFirma(){
   var el = document.getElementById('pend-firma-body');
   if(!el) return;
-  el.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b">⏳ Cargando...</p>';
+  el.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b">⏳ Cargando todas las prácticas pendientes...</p>';
   if(typeof db === 'undefined' || typeof dKey === 'undefined'){
     el.innerHTML = '<p style="color:#dc2626;padding:16px">Error: base de datos no disponible</p>';
     return;
   }
-  var dias = [];
-  for(var i = 0; i < 7; i++){
-    var f = new Date();
-    f.setDate(f.getDate() - i);
-    dias.push(dKey(f));
-  }
+  // Cargar TODAS las fechas registradas
+  db.collection('fechas_usadas').get().then(function(snapFechas){
+    var dias = snapFechas.docs.map(function(d){return d.id;});
+    dias.sort(function(a,b){return b.localeCompare(a);}); // más reciente primero
   var pendientes = [];
   var promesas = dias.map(function(fecha){
     return db.collection('practicas_' + fecha).get()
@@ -3434,8 +3432,22 @@ function cargarPendientesFirma(){
       el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:10px">Sin pendientes de firma</p></div>';
       return;
     }
+    // Agrupar por profesor
+    var porProf = {};
+    pendientes.forEach(function(p){
+      var prof = p.profesorNombre || 'Sin profesor';
+      if(!porProf[prof]) porProf[prof] = [];
+      porProf[prof].push(p);
+    });
     var html2 = '';
-    pendientes.forEach(function(p, i){
+    if(!pendientes.length){
+      el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:10px">Sin pendientes de firma</p></div>';
+      return;
+    }
+    Object.keys(porProf).sort().forEach(function(profNom){
+      html2 += '<div style="background:#0f2d6b;color:#fff;padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;border-radius:6px">'
+        +'👨‍🏫 '+profNom+' ('+porProf[profNom].length+' pendiente'+(porProf[profNom].length>1?'s':'')+')</div>';
+      porProf[profNom].forEach(function(p, i){
       var bg = i % 2 === 0 ? '#f8faff' : '#ffffff';
       var vIcon = p.vehiculo === 'moto' ? '🏍️' : p.vehiculo === 'camion' ? '🚛' : '🚗';
       var nom = (p.alumnoNombre || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -3447,8 +3459,12 @@ function cargarPendientesFirma(){
         + '<button onclick="cerrarSheet(\'sh-pendientes-firma\');setTimeout(function(){abrirFirma(\'' + p.fecha + '\',\'' + p.id + '\',\'' + nom + '\');},150);" '
           + 'style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">✍️ Firmar</button>'
         + '</div>';
+      });
     });
     el.innerHTML = html2;
+  });
+  }).catch(function(e){
+    el.innerHTML = '<p style="color:#dc2626;padding:16px">Error: '+e.message+'</p>';
   });
 }
 
