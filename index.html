@@ -336,7 +336,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       </div>
       <!-- Vista del profesor: tarjetas de alumnos -->
       <div style="padding:6px 0 10px">
-        <button onclick="abrirSheet('sh-pendientes-firma');cargarPendientesFirma();" style="width:100%;padding:10px 14px;background:#fee2e2;color:#dc2626;border:2px solid #dc2626;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✍️ Pendientes de firma — últimos 7 días</button>
+        <button onclick="abrirSheet('sh-pendientes-firma');cargarPendientesFirma();" style="width:100%;padding:10px 14px;background:#fee2e2;color:#dc2626;border:2px solid #dc2626;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✍️ Pendientes de firma</button>
       </div>
       <div id="prac-list"></div>
       <!-- Lista CRUD profesores (solo admin) -->
@@ -478,6 +478,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
             <button class="btn-sec" style="width:100%;font-size:11px" onclick="(async function(){var s=await db.collection('accesos').orderBy('ts','desc').limit(10).get();alert('Accesos:\n'+s.docs.map(function(d){var a=d.data();return a.fecha+' | '+a.zona+' | '+a.pantalla;}).join('\n'));}())">📋 Ver últimos accesos</button>
           </div>
         </div>
+        </div><!-- /cfg-sec-webhook -->
         <div class="cfg-sec">
           <h3>📱 WhatsApp API</h3>
           <div class="card" style="padding:14px">
@@ -3352,7 +3353,7 @@ entrar = function(){
 <!-- Sheet pendientes de firma -->
 <div id="sh-pendientes-firma" class="sheet hidden">
   <div class="sheet-hdr">
-    <span style="font-weight:700">✍️ Pendientes de firma — 7 días</span>
+    <span style="font-weight:700">✍️ Pendientes de firma</span>
     <button onclick="cerrarSheet('sh-pendientes-firma')" class="btn-close">✕</button>
   </div>
   <div style="padding:8px 14px;background:#f8faff;border-bottom:1px solid #e2e8f0">
@@ -3591,6 +3592,34 @@ window.onload=async function(){
   if(!ok) return; // bloquear si no hay licencia
   if(_origOnload) _origOnload();
 };
+
+// ── Bloquear entrar() si licencia inválida ───────────────────
+(function(){
+  var _t=setInterval(function(){
+    if(typeof entrar!=='function') return;
+    clearInterval(_t);
+    var _orig=entrar;
+    entrar=async function(){
+      var cid=localStorage.getItem('diesel_client_id')||'';
+      if(cid){
+        try{
+          if(!licDb){
+            var la=firebase.apps.find(function(a){return a.name==='licencias';})
+              ||firebase.initializeApp(LIC_CFG,'licencias');
+            licDb=firebase.firestore(la);
+          }
+          var doc=await licDb.collection('licencias').doc(cid).get();
+          if(doc.exists){
+            var d=doc.data(); var exp=new Date(d.expira+'T23:59:59');
+            if(!d.activo){ mostrarBloqueoPantalla('Licencia desactivada',d.motivo||'Licencia desactivada.','Contacta con tu proveedor.'); return; }
+            if(exp<new Date()){ mostrarBloqueoPantalla('Licencia expirada','Expiró el '+d.expira+'.','Renueva tu suscripción.'); return; }
+          }
+        }catch(e){ console.warn('Lic entrar:',e); }
+      }
+      _orig();
+    };
+  },300);
+})();
 </script>
 
 </body>
