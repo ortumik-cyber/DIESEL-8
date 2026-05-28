@@ -959,6 +959,7 @@ function entrar(){
 document.getElementById('btn-salir').onclick = function(){
   if(unsubCal)  { unsubCal();  unsubCal=null;  }
   if(unsubProf) { unsubProf(); unsubProf=null; }
+  var _ws2=document.getElementById('cfg-sec-webhook');if(_ws2)_ws2.style.display='none';
   rol=''; alumnos=[]; profesores=[]; profSel=''; editAlId=null; fichaAlId=null; profColors={}; alBilling={};
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
@@ -3357,6 +3358,29 @@ entrar = function(){
 </div>
 
 <script>
+// ── Contraseña acceso sección instalador ─────────────────────
+function _sh(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h=h&h;}return String(Math.abs(h));}
+function toggleInstaladorSection(){
+  var ws=document.getElementById('cfg-sec-webhook');
+  if(!ws) return;
+  var visible=ws.style.display!=='none'&&ws.style.display!=='';
+  if(visible){ ws.style.display='none'; return; }
+  var stored=localStorage.getItem('diesel_inst_pass');
+  if(!stored){
+    var p1=prompt('Crea la contrasena de instalador (min 4 caracteres):');
+    if(!p1||p1.length<4){alert('Minimo 4 caracteres');return;}
+    var p2=prompt('Repite la contrasena:');
+    if(p1!==p2){alert('Las contrasenyas no coinciden');return;}
+    localStorage.setItem('diesel_inst_pass',_sh(p1));
+    ws.style.display='';
+    return;
+  }
+  var input=prompt('Contrasena de instalador:');
+  if(!input) return;
+  if(_sh(input)!==stored){alert('Contrasena incorrecta');return;}
+  ws.style.display='';
+}
+
 // ── Pendientes de firma ────────────────────────────────────
 function cargarPendientesFirma(){
   var el = document.getElementById('pend-firma-body');
