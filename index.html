@@ -489,7 +489,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       </div>
       
         <div class="card" style="padding:14px">
-          <p style="font-size:13px;cursor:pointer" ondblclick="document.getElementById('cfg-sec-webhook').style.display=document.getElementById('cfg-sec-webhook').style.display==='none'?'':' none'">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
+          <p style="font-size:13px;cursor:pointer;user-select:none" ondblclick="toggleInstaladorSection()" title="Doble clic para acceso instalador">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
           <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
         </div>
       </div>
@@ -960,6 +960,7 @@ document.getElementById('btn-salir').onclick = function(){
   if(unsubCal)  { unsubCal();  unsubCal=null;  }
   if(unsubProf) { unsubProf(); unsubProf=null; }
   var _ws2=document.getElementById('cfg-sec-webhook');if(_ws2)_ws2.style.display='none';
+  sessionStorage.removeItem('diesel_inst_ok');
   rol=''; alumnos=[]; profesores=[]; profSel=''; editAlId=null; fichaAlId=null; profColors={}; alBilling={};
   document.getElementById('main-app').classList.add('hidden');
   document.getElementById('login-screen').classList.remove('hidden');
@@ -3360,24 +3361,43 @@ entrar = function(){
 <script>
 // ── Contraseña acceso sección instalador ─────────────────────
 function _sh(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h=h&h;}return String(Math.abs(h));}
+
 function toggleInstaladorSection(){
   var ws=document.getElementById('cfg-sec-webhook');
   if(!ws) return;
+  // Si ya está visible, cerrar y borrar sesión
   var visible=ws.style.display!=='none'&&ws.style.display!=='';
-  if(visible){ ws.style.display='none'; return; }
-  var stored=localStorage.getItem('diesel_inst_pass');
-  if(!stored){
-    var p1=prompt('Crea la contrasena de instalador (min 4 caracteres):');
-    if(!p1||p1.length<4){alert('Minimo 4 caracteres');return;}
-    var p2=prompt('Repite la contrasena:');
-    if(p1!==p2){alert('Las contrasenyas no coinciden');return;}
-    localStorage.setItem('diesel_inst_pass',_sh(p1));
+  if(visible){
+    ws.style.display='none';
+    sessionStorage.removeItem('diesel_inst_ok');
+    return;
+  }
+  // Comprobar si hay sesión activa en esta pestaña
+  if(sessionStorage.getItem('diesel_inst_ok')==='1'){
     ws.style.display='';
     return;
   }
-  var input=prompt('Contrasena de instalador:');
+  var stored=localStorage.getItem('diesel_inst_pass');
+  if(!stored){
+    // Primera vez: crear contraseña
+    var p1=prompt('Primera vez. Crea la contraseña de instalador (mínimo 4 caracteres):');
+    if(!p1||p1.length<4){alert('Mínimo 4 caracteres');return;}
+    var p2=prompt('Repite la contraseña:');
+    if(p1!==p2){alert('Las contraseñas no coinciden');return;}
+    localStorage.setItem('diesel_inst_pass',_sh(p1));
+    sessionStorage.setItem('diesel_inst_ok','1');
+    ws.style.display='';
+    toast('✅ Contraseña de instalador creada');
+    return;
+  }
+  // Pedir contraseña
+  var input=prompt('Contraseña de instalador:');
   if(!input) return;
-  if(_sh(input)!==stored){alert('Contrasena incorrecta');return;}
+  if(_sh(input)!==stored){
+    alert('❌ Contraseña incorrecta');
+    return;
+  }
+  sessionStorage.setItem('diesel_inst_ok','1');
   ws.style.display='';
 }
 
