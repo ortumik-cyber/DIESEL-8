@@ -489,8 +489,13 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       </div>
       
         <div class="card" style="padding:14px">
-          <p style="font-size:13px;cursor:pointer;user-select:none" onclick="onPerfilTap()" title="Toca 2 veces: acceso instalador">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong> <span style="font-size:9px;color:#cbd5e1;letter-spacing:.5px">●●</span></p>
+          <p style="font-size:13px">Perfil: <strong id="cfg-rol" style="color:#1a56db"></strong></p>
           <p id="cfg-version" style="font-size:11px;color:#94a3b8;margin-top:4px">Autoescuela Diesel · v7.0</p>
+          <p style="text-align:right;margin-top:6px">
+            <span id="btn-inst-access" onclick="toggleInstaladorSection()" 
+              style="font-size:13px;color:#94a3b8;cursor:pointer;user-select:none;padding:4px 8px;border-radius:4px;display:inline-block;border:1px solid #e2e8f0"
+              title="Instalador">⚙</span>
+          </p>
         </div>
       </div>
     </div>
@@ -3360,18 +3365,6 @@ entrar = function(){
 
 <script>
 
-// ── Doble tap compatible iOS + desktop ───────────────────────
-var _instTaps=0, _instTimer=null;
-function onPerfilTap(){
-  _instTaps++;
-  if(_instTimer) clearTimeout(_instTimer);
-  if(_instTaps>=2){
-    _instTaps=0;
-    toggleInstaladorSection();
-  } else {
-    _instTimer=setTimeout(function(){ _instTaps=0; }, 400);
-  }
-}
 // ── Contraseña acceso sección instalador ─────────────────────
 function _sh(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h=h&h;}return String(Math.abs(h));}
 
@@ -3568,15 +3561,20 @@ async function verificarLicencia(){
         'Renueva tu suscripción con tu proveedor.');
       return false;
     }
-    // Guardar timestamp OK para gracia offline 24h
-    localStorage.setItem('diesel_lic_ok',String(Date.now()));
-    localStorage.setItem('diesel_lic_data',JSON.stringify({expira:lic.expira,autoescuela:lic.autoescuela||''}));
+    // Activar listener en tiempo real — bloquea si desactivan
+    licDb.collection('licencias').doc(clientId).onSnapshot(function(snap){
+      if(!snap.exists){ mostrarBloqueoPantalla('Licencia eliminada','Tu licencia ha sido eliminada.','Contacta con tu instalador.'); return; }
+      var d=snap.data();
+      var exp=new Date(d.expira+'T23:59:59');
+      if(!d.activo){ mostrarBloqueoPantalla('Licencia desactivada',d.motivo||'Licencia desactivada.','Contacta con tu proveedor.'); }
+      else if(exp<new Date()){ mostrarBloqueoPantalla('Licencia expirada','La licencia expiró el '+d.expira+'.','Renueva tu suscripción.'); }
+    },function(e){ console.warn('Lic listener error:',e); });
     return true;
   }catch(e){
-    // Si hay error de red: período de gracia 24h
+    // Sin conexión: gracia 2h (no 24h)
     var lastOk=parseInt(localStorage.getItem('diesel_lic_ok')||'0');
-    if(lastOk>0&&(Date.now()-lastOk)<86400000){
-      console.warn('Licencia: modo offline, gracia 24h');
+    if(lastOk>0&&(Date.now()-lastOk)<7200000){
+      console.warn('Licencia: modo offline, gracia 2h');
       return true;
     }
     mostrarBloqueoPantalla('Sin conexión',
