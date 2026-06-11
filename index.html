@@ -3367,6 +3367,14 @@ entrar = function(){
 </div>
 
 <script>
+function firmarPendiente(el){
+  var fecha=el.getAttribute('data-fecha');
+  var id=el.getAttribute('data-id');
+  var nom=el.getAttribute('data-nom');
+  cerrarSheet('sh-pendientes-firma');
+  setTimeout(function(){ abrirFirma(fecha,id,nom); },200);
+}
+
 
 // ── Contraseña acceso sección instalador ─────────────────────
 function _sh(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h=h&h;}return String(Math.abs(h));}
@@ -3456,7 +3464,7 @@ function cargarPendientesFirma(){
           var vi=vIcons[p.vehiculo]||'🚗';
           var btn='';
           if(rol==='profesor'){
-            btn='<button onclick="cerrarSheet('sh-pendientes-firma');setTimeout(function(){abrirFirma(''+p.fecha+'',''+p.id+'',''+nom+'');},200);" style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✍️ Firmar</button>';
+            btn='<button onclick="firmarPendiente(this)" data-fecha="'+p.fecha+'" data-id="'+p.id+'" data-nom="'+nom.replace(/\"/g,\'&quot;\')+'" style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✍️ Firmar</button>';
           }
           h2+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px">'
             +'<div><div style="font-size:13px;font-weight:700;color:#0f2d6b">'+p.hora+' · '+nom+'</div>'
