@@ -1119,7 +1119,7 @@ function renderCalendario(prs){
 
   var body=document.getElementById('cal-body');
   if(!prs.length){
-    body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#94a3b8"><div style="font-size:32px;margin-bottom:10px">📅</div><div style="font-size:13px">Sin citas para este día</div>'+(esAdmin?'<div style="margin-top:12px"><button onclick="abrirNuevaPrac('')" style="padding:7px 16px;background:#4f46e5;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">+ Nueva cita</button></div>':'')+'</div>';
+    body.innerHTML='<div style="text-align:center;padding:40px 20px;color:#94a3b8"><div style="font-size:32px;margin-bottom:10px">📅</div><div style="font-size:13px">Sin citas para este día</div>'+(esAdmin?'<div style="margin-top:12px"><button onclick="abrirNuevaPrac()" style="padding:7px 16px;background:#4f46e5;color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer">+ Nueva cita</button></div>':'')+'</div>';
     return;
   }
 
