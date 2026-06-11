@@ -3486,8 +3486,7 @@ function mostrarBloqueoPantalla(titulo, msg, contacto){
   bl.id='pantalla-bloqueo';
   bl.style.cssText='position:fixed;inset:0;background:#0f2d6b;display:flex;flex-direction:column;'
     +'align-items:center;justify-content:center;z-index:99999;color:#fff;text-align:center;padding:24px';
-  bl.innerHTML='<img src="icon.png" style="width:80px;height:80px;border-radius:16px;margin-bottom:24px;object-fit:cover" onerror="this.style.display='none'">'
-    +'<div style="font-size:48px;margin-bottom:16px">🔒</div>'
+  bl.innerHTML='<div style="font-size:72px;margin-bottom:16px">🔒</div>'
     +'<h1 style="font-size:22px;font-weight:700;margin-bottom:10px">'+titulo+'</h1>'
     +'<p style="font-size:15px;color:#93c5fd;max-width:360px;line-height:1.6;margin-bottom:24px">'+msg+'</p>'
     +(contacto?'<p style="font-size:13px;color:#475569;background:rgba(255,255,255,.08);padding:10px 20px;border-radius:8px">'+contacto+'</p>':'')
