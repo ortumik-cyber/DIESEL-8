@@ -73,9 +73,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
   .content{padding:14px 0 0 0;display:flex;flex-direction:column}
   #tab-admin{flex:1;display:flex;flex-direction:column;padding:0 14px 0 14px}
   #tab-profesor,#tab-alumnos,#tab-config{padding:0 14px}
-  #tab-admin{display:flex;flex-direction:column;overflow:hidden}
-  #tab-admin .citas-flex{flex:1;display:flex;overflow:hidden;min-height:0}
-  #tab-admin .card-cal{flex:1;display:flex;flex-direction:column;overflow:hidden;border-radius:0;border-left:none;border-right:none;margin-bottom:0}
+  #tab-admin>.card-cal{flex:1;display:flex;flex-direction:column;overflow:hidden;border-radius:0;border-left:none;border-right:none;margin-bottom:0}
   #cal-body{flex:1;overflow-y:auto}
   .cal-row{min-height:52px}
   .cal-hora{width:68px;font-size:12px}
@@ -306,37 +304,32 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
 
     <!-- CALENDARIO -->
     <div id="tab-admin">
-      <div class="citas-flex" style="flex:1;overflow:hidden;min-height:0">
-        <!-- SIDEBAR PROFESORES -->
-        <div id="prof-sidebar" style="width:82px;flex-shrink:0;background:#0f2d6b;display:flex;flex-direction:column;overflow-y:auto;padding:6px 4px;gap:4px">
-          <div id="prof-sidebar-list">
-            <button class="psb-btn psb-active" data-pid="" onclick="selProfSidebar(this)"
-              style="width:100%;padding:7px 4px;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;text-align:center;letter-spacing:.3px;margin-bottom:2px">
-              👥<br>TODOS
-            </button>
-          </div>
-          <div style="margin-top:auto;padding-top:6px;border-top:1px solid rgba(255,255,255,.15)">
-            <button id="btn-nueva-cita-sb" onclick="abrirNuevaPrac('')"
-              style="width:100%;padding:7px 4px;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;text-align:center;display:none">
-              ➕<br>NUEVA
-            </button>
-          </div>
+      <div style="display:flex;flex:1;overflow:hidden;height:100%">
+        <!-- SIDEBAR -->
+        <div id="prof-sidebar" style="width:110px;flex-shrink:0;background:#0f2d6b;overflow-y:auto;padding:8px 6px;display:flex;flex-direction:column;gap:4px">
+          <button onclick="selSidebar(this,'')" data-pid="" class="sb-item sb-sel"
+            style="width:100%;padding:8px 6px;border:none;border-radius:6px;background:rgba(255,255,255,.18);color:#fff;font-size:11px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            👥 Todos
+          </button>
+          <div id="sb-profs"></div>
         </div>
-        <!-- PANEL DERECHO -->
+        <!-- PANEL CALENDARIO -->
         <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0">
       <div class="date-nav">
         <button class="dnav-btn" id="btn-dia-prev">‹</button>
         <span class="dnav-label" id="fecha-label"></span>
         <button class="dnav-btn" id="btn-dia-next">›</button>
         <button class="btn-sm btn-navy" id="btn-hoy">Hoy</button>
+        <button class="btn-sm btn-blue" id="btn-nueva-cita-top" style="display:none">+ Nueva cita</button>
         <button class="btn-sm btn-outline" id="btn-gcal-dia">📅 GCal</button>
       </div>
       <div class="card-cal" id="card-cal">
         <div id="cal-legend" class="cal-legend"></div>
         <div id="cal-body"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
-      </div><!-- /panel-derecho -->
-      </div><!-- /citas-flex -->
-    </div>
+      </div><!-- /card-cal -->
+        </div><!-- /panel-cal -->
+      </div><!-- /sidebar-flex -->
+    </div><!-- /tab-admin -->
 
     <!-- PROFESOR -->
     <div id="tab-profesor" class="hidden">
@@ -1014,7 +1007,6 @@ function irTab(t){
   });
   if(t==='admin')    subscribeCal();
   if(t==='profesor'){
-    setTimeout(function(){ cargarPendientesPorProfesor(); }, 300);
     var adminNav = document.getElementById('prof-admin-nav');
     if(adminNav) adminNav.style.display = rol==='admin' ? '' : 'none';
     if(rol==='admin') renderProfesores();
@@ -1054,6 +1046,8 @@ async function initData(){
 document.getElementById('btn-dia-prev').onclick = function(){ cambiarDia(-1); };
 document.getElementById('btn-dia-next').onclick = function(){ cambiarDia(1); };
 document.getElementById('cal-prof-sel').onchange = function(){ subscribeCal(); };
+  var _btnNuevaCita=document.getElementById('btn-nueva-cita-top');
+  if(_btnNuevaCita) _btnNuevaCita.onclick=function(){ abrirNuevaPrac(''); };
   document.getElementById('btn-hoy').onclick = function(){
   currentDate = new Date(); subscribeCal();
 };
@@ -1094,7 +1088,7 @@ function renderCalendario(prs){
   document.getElementById('fecha-label').textContent = fmtD(currentDate);
   var esAdmin = rol==='admin';
   // Filtrar por profesor seleccionado en el dropdown
-  if(_sideProfId){ prs = prs.filter(function(p){ return p.profesorId===_sideProfId; }); }
+  if(typeof _sbProfId!=='undefined'&&_sbProfId){ prs=prs.filter(function(p){return p.profesorId===_sbProfId;}); }
   // Leyenda de profesores
   var legend = document.getElementById('cal-legend');
   if(profesores.length){
@@ -1183,7 +1177,7 @@ function abrirNuevaPrac(hora){
     return '<option value="'+a.id+'">'+a.nombre+'</option>';
   }).join('');
   document.getElementById('m-prof').innerHTML = '<option value="">— Sin asignar —</option>'+
-    profesores.map(function(p){ return '<option value="'+p.id+'"'+( p.id===_sideProfId?' selected':'')+'>'+p.nombre+'</option>'; }).join('');
+    profesores.map(function(p){ return '<option value="'+p.id+'"'+(p.id===(typeof _sbProfId!=='undefined'?_sbProfId:'')?' selected':'')+'>'+p.nombre+'</option>'; }).join('');
   abrirSheet('sh-practica');
 }
 
@@ -1316,7 +1310,7 @@ function renderProfesor(prs){
 // ══════════════════════════════════════════════════════════════
 // PROFESORES CRUD — sin overrides, función única
 // ══════════════════════════════════════════════════════════════
-function actualizarDropdownProfs(){ actualizarSidebar();
+function actualizarDropdownProfs(){ if(typeof actualizarSidebar!=="undefined") actualizarSidebar();
   var sel = document.getElementById('cal-prof-sel');
   if(!sel) return;
   var cur = sel.value;
@@ -1336,7 +1330,7 @@ function renderProfesores(){
     var ini = (p.nombre||'??').split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();
     var c   = profColors[p.id]||{bg:'#dbeafe',tx:'#1e40af'};
     var esp = espMap[p.especialidad]||'';
-    return '<div class="arow" style="flex-wrap:wrap">'
+    return '<div class="arow">'
       +'<div class="avatar" style="background:'+c.bg+';color:'+c.tx+'">'+ini+'</div>'
       +'<div class="arow-info"><div class="arow-nom">'+(p.nombre||'')+'</div>'
         +'<div class="arow-sub">'+esp+(p.telefono?' · '+p.telefono:'')
@@ -1346,8 +1340,7 @@ function renderProfesores(){
         +'</div></div>'
       +'<button class="icon-btn" style="font-size:11px;padding:5px 7px;background:#f0fdf4;border:1px solid #16a34a;color:#16a34a;border-radius:6px;margin-right:4px" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'" title="Cambiar contraseña">🔑</button>'
       +'<button class="icon-btn del-btn" data-id="'+p.id+'" data-nom="'+(p.nombre||'')+'">🗑️</button>'
-      +'</div>'
-      +'<div id="pend-prof-'+p.id+'" style="width:100%;padding:0 0 6px 12px;font-size:11px;color:#64748b;display:none"></div>';
+      +'</div>';
   }).join('');
   body.querySelectorAll('[title="Cambiar contraseña"]').forEach(function(btn){
     btn.onclick=function(){
@@ -3407,44 +3400,34 @@ entrar = function(){
 </div>
 
 <script>
-// ── Sidebar de profesores ─────────────────────────────────────
-var _sideProfId = '';
+// ── Sidebar de profesores en CITAS ───────────────────────────
+var _sbProfId = '';
 
-function selProfSidebar(btn){
-  document.querySelectorAll('.psb-btn').forEach(function(b){
-    b.style.background='';
-    b.classList.remove('psb-active');
+function selSidebar(btn, pid){
+  _sbProfId = pid;
+  document.querySelectorAll('.sb-item').forEach(function(b){
+    b.style.background = b.getAttribute('data-pid')===pid ? 'rgba(255,255,255,.22)' : 'transparent';
   });
-  btn.style.background='rgba(255,255,255,.18)';
-  btn.classList.add('psb-active');
-  _sideProfId = btn.getAttribute('data-pid')||'';
-  // Mostrar btn NUEVA solo si hay prof seleccionado o siempre para admin
-  var btnNueva = document.getElementById('btn-nueva-cita-sb');
-  if(btnNueva) btnNueva.style.display = (rol==='admin') ? '' : 'none';
+  // Mostrar botón Nueva Cita solo para admin
+  var btnNew = document.getElementById('btn-nueva-cita-top');
+  if(btnNew) btnNew.style.display = rol==='admin' ? '' : 'none';
   subscribeCal();
 }
 
 function actualizarSidebar(){
-  var list = document.getElementById('prof-sidebar-list');
-  if(!list) return;
-  // Mantener el botón TODOS
-  var todos = list.querySelector('[data-pid=""]');
-  list.innerHTML = '';
-  if(todos) list.appendChild(todos);
-  profesores.forEach(function(p){
-    var initials = (p.nombre||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,4);
-    var btn = document.createElement('button');
-    btn.className = 'psb-btn';
-    btn.setAttribute('data-pid', p.id);
-    btn.setAttribute('onclick','selProfSidebar(this)');
-    btn.style.cssText='width:100%;padding:7px 4px;background:transparent;color:#fff;border:none;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;text-align:center;letter-spacing:.3px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-    btn.innerHTML = '<div style="font-size:18px;margin-bottom:2px">👤</div>'+initials;
-    if(p.id===_sideProfId){ btn.style.background='rgba(255,255,255,.18)'; btn.classList.add('psb-active'); }
-    list.appendChild(btn);
-  });
+  var cont = document.getElementById('sb-profs');
+  if(!cont) return;
+  cont.innerHTML = profesores.map(function(p){
+    var sel = p.id===_sbProfId ? 'rgba(255,255,255,.22)' : 'transparent';
+    return '<button onclick="selSidebar(this,\''+p.id+'\')" data-pid="'+p.id+'" class="sb-item"'
+      +' style="width:100%;padding:8px 6px;border:none;border-radius:6px;background:'+sel+';color:#fff;'
+      +'font-size:11px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap;'
+      +'overflow:hidden;text-overflow:ellipsis;margin-bottom:2px">'+
+      '👤 '+(p.nombre||'?')+'</button>';
+  }).join('');
   // Mostrar btn nueva si admin
-  var btnNueva = document.getElementById('btn-nueva-cita-sb');
-  if(btnNueva) btnNueva.style.display = rol==='admin' ? '' : 'none';
+  var btnNew = document.getElementById('btn-nueva-cita-top');
+  if(btnNew) btnNew.style.display = rol==='admin' ? '' : 'none';
 }
 
 function firmarPendiente(el){
@@ -3659,44 +3642,6 @@ window.onload=async function(){
     };
   },300);
 })();
-
-// ── Citas pendientes por profesor (pestaña PROFESOR) ─────────
-function cargarPendientesPorProfesor(){
-  if(rol!=='admin' && rol!=='jefe') return;
-  db.collection('fechas_usadas').get().then(function(snapFechas){
-    var dias=snapFechas.docs.map(function(d){return d.id;});
-    var promises=dias.map(function(fecha){
-      return db.collection('practicas_'+fecha).where('firmada','==',false).get()
-        .then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id,fecha:fecha},d.data());});});
-    });
-    Promise.all(promises).then(function(results){
-      // Agrupar por profesorId
-      var porProf={};
-      results.forEach(function(r){r.forEach(function(p){
-        var pid=p.profesorId||'sin-prof';
-        if(!porProf[pid]) porProf[pid]=[];
-        porProf[pid].push(p);
-      });});
-      // Renderizar bajo cada profesor
-      profesores.forEach(function(p){
-        var el=document.getElementById('pend-prof-'+p.id);
-        if(!el) return;
-        var lista=porProf[p.id]||[];
-        if(!lista.length){ el.style.display='none'; return; }
-        lista.sort(function(a,b){return b.fecha.localeCompare(a.fecha);});
-        el.style.display='';
-        el.innerHTML='<div style="font-size:10px;font-weight:700;color:#dc2626;margin:4px 0 3px;text-transform:uppercase;letter-spacing:.4px">✍️ '+lista.length+' pendiente'+(lista.length>1?'s':'')+' de firma</div>'
-          +lista.map(function(pr){
-            var d=new Date(pr.fecha+'T12:00:00');
-            var dias2=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-            var mes=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-            var label=dias2[d.getDay()]+' '+d.getDate()+' '+mes[d.getMonth()];
-            return '<span style="display:inline-block;margin:2px 3px 2px 0;padding:2px 7px;background:#fee2e2;color:#dc2626;border-radius:4px;font-size:10px">'+label+' '+pr.hora+' — '+(pr.alumnoNombre||'?')+'</span>';
-          }).join('');
-      });
-    });
-  }).catch(function(e){ console.warn('Pend por prof:', e); });
-}
 </script>
 
 </body>
