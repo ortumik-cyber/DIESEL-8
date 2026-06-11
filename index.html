@@ -3537,16 +3537,9 @@ async function verificarLicencia(){
     },function(e){ console.warn('Lic listener error:',e); });
     return true;
   }catch(e){
-    // Sin conexión: gracia 2h (no 24h)
-    var lastOk=parseInt(localStorage.getItem('diesel_lic_ok')||'0');
-    if(lastOk>0&&(Date.now()-lastOk)<7200000){
-      console.warn('Licencia: modo offline, gracia 2h');
-      return true;
-    }
-    mostrarBloqueoPantalla('Sin conexión',
-      'No se puede verificar la licencia. Se requiere conexión a internet.',
-      'Si el problema persiste, contacta con tu instalador.');
-    return false;
+    // Error de red o Firebase: permitir acceso (no bloquear por problemas técnicos)
+    console.warn('Licencia: error al verificar (' + e.message + '). Permitiendo acceso.');
+    return true;
   }
 }
 
