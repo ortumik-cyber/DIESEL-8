@@ -332,6 +332,14 @@ html,body{height:100%;overflow:hidden;font-family:'Inter','Segoe UI',system-ui,-
 
     <!-- CALENDARIO -->
     <div id="tab-admin">
+      <div class="citas-wrap">
+        <!-- SIDEBAR PROFESORES -->
+        <div class="prof-sb" id="prof-sb">
+          <button class="sb-btn active" data-pid="" onclick="selSb(this,'')" title="Todos">👥 TODOS</button>
+          <div id="sb-list"></div>
+        </div>
+        <!-- PANEL CALENDARIO -->
+        <div class="cal-panel">
       <div class="date-nav">
         <button class="dnav-btn" id="btn-dia-prev">‹</button>
         <span class="dnav-label" id="fecha-label"></span>
@@ -343,7 +351,8 @@ html,body{height:100%;overflow:hidden;font-family:'Inter','Segoe UI',system-ui,-
       <div class="card-cal" id="card-cal">
         <div id="cal-legend" class="cal-legend"></div>
         <div id="cal-body"><div class="loading"><div class="spinner"></div>Cargando...</div></div>
-      </div><!-- /cal-panel -->
+      </div>
+        </div><!-- /cal-panel -->
       </div><!-- /citas-wrap -->
     </div><!-- /tab-admin -->
 
