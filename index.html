@@ -294,7 +294,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
     </div>
   </div>
   <div class="tabs">
-    <button class="tab active" data-tab="admin"><span class="tab-ico">📅</span>Calendario</button>
+    <button class="tab active" data-tab="admin"><span class="tab-ico">📅</span>Citas</button>
     <button class="tab" data-tab="profesor"><span class="tab-ico">👨‍🏫</span>Profesor</button>
     <button class="tab" data-tab="alumnos"><span class="tab-ico">👥</span>Alumnos</button>
     <button class="tab hidden" id="tab-btn-dashboard" data-tab="dashboard"><span class="tab-ico">📊</span>Dashboard</button>
@@ -304,6 +304,12 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
 
     <!-- CALENDARIO -->
     <div id="tab-admin">
+      <div style="padding:10px 14px 6px;background:#f8faff;border-bottom:1px solid #e2e8f0">
+        <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:4px">Filtrar por profesor</label>
+        <select id="cal-prof-sel" style="width:100%;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:14px;font-family:inherit;background:#fff;color:#0f172a">
+          <option value="">👥 Todos los profesores</option>
+        </select>
+      </div>
       <div class="date-nav">
         <button class="dnav-btn" id="btn-dia-prev">‹</button>
         <span class="dnav-label" id="fecha-label"></span>
@@ -996,6 +1002,7 @@ function irTab(t){
     var adminNav = document.getElementById('prof-admin-nav');
     if(adminNav) adminNav.style.display = rol==='admin' ? '' : 'none';
     if(rol==='admin') renderProfesores();
+    actualizarDropdownProfs();
     subscribeProf();
   }
   if(t==='alumnos')   renderAlumnos();
@@ -1030,7 +1037,8 @@ async function initData(){
 // ══════════════════════════════════════════════════════════════
 document.getElementById('btn-dia-prev').onclick = function(){ cambiarDia(-1); };
 document.getElementById('btn-dia-next').onclick = function(){ cambiarDia(1); };
-document.getElementById('btn-hoy').onclick = function(){
+document.getElementById('cal-prof-sel').onchange = function(){ subscribeCal(); };
+  document.getElementById('btn-hoy').onclick = function(){
   currentDate = new Date(); subscribeCal();
 };
 document.getElementById('btn-gcal-dia').onclick = function(){
@@ -1069,6 +1077,9 @@ function subscribeCal(){
 function renderCalendario(prs){
   document.getElementById('fecha-label').textContent = fmtD(currentDate);
   var esAdmin = rol==='admin';
+  // Filtrar por profesor seleccionado en el dropdown
+  var profSel2 = (document.getElementById('cal-prof-sel')||{value:''}).value;
+  if(profSel2){ prs = prs.filter(function(p){ return p.profesorId===profSel2; }); }
   // Leyenda de profesores
   var legend = document.getElementById('cal-legend');
   if(profesores.length){
@@ -1156,8 +1167,9 @@ function abrirNuevaPrac(hora){
   document.getElementById('m-alumno').innerHTML = alSort.map(function(a){
     return '<option value="'+a.id+'">'+a.nombre+'</option>';
   }).join('');
+  var _calProfSel = (document.getElementById('cal-prof-sel')||{value:''}).value;
   document.getElementById('m-prof').innerHTML = '<option value="">— Sin asignar —</option>'+
-    profesores.map(function(p){ return '<option value="'+p.id+'">'+p.nombre+'</option>'; }).join('');
+    profesores.map(function(p){ return '<option value="'+p.id+'"'+( p.id===_calProfSel?' selected':'')+'>'+p.nombre+'</option>'; }).join('');
   abrirSheet('sh-practica');
 }
 
@@ -1290,6 +1302,15 @@ function renderProfesor(prs){
 // ══════════════════════════════════════════════════════════════
 // PROFESORES CRUD — sin overrides, función única
 // ══════════════════════════════════════════════════════════════
+function actualizarDropdownProfs(){
+  var sel = document.getElementById('cal-prof-sel');
+  if(!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">👥 Todos los profesores</option>'
+    + profesores.map(function(p){
+        return '<option value="'+p.id+'"'+(p.id===cur?' selected':'')+'>'+(p.nombre||'?')+'</option>';
+      }).join('');
+}
 function renderProfesores(){
   var body = document.getElementById('prof-body');
   var espMap = {coche:'🚗 Coche',moto:'🏍️ Moto',camion:'🚛 Camión',todos:'🚗🏍️🚛'};
@@ -1322,7 +1343,7 @@ function renderProfesores(){
         .then(function(){
           var px=profesores.find(function(x){return x.id===id;});
           if(px) px.password=nueva;
-          renderProfesores();
+          renderProfesores(); actualizarDropdownProfs();
           toast('Contraseña de '+nom+' actualizada ✓');
         }).catch(function(e){ toast('Error: '+e.message); });
     };
@@ -1335,7 +1356,7 @@ function renderProfesores(){
           try{
             await db.collection('profesores').doc(btn.dataset.id).delete();
             profesores = profesores.filter(function(p){ return p.id!==btn.dataset.id; });
-            asignarColores(); actualizarSelectProfs(); renderProfesores();
+            asignarColores(); actualizarSelectProfs(); renderProfesores(); actualizarDropdownProfs();
             sync('online'); toast('Profesor eliminado');
           }catch(e){ sync(''); toast('Error: '+e.message); }
         }
@@ -1364,7 +1385,7 @@ document.getElementById('btn-guardar-prof').onclick = async function(){
     var ref = await db.collection('profesores').add(datos);
     profesores.push(Object.assign({id:ref.id},datos));
     profesores.sort(function(a,b){ return (a.nombre||'').localeCompare(b.nombre||''); });
-    asignarColores(); actualizarSelectProfs(); renderProfesores();
+    asignarColores(); actualizarSelectProfs(); renderProfesores(); actualizarDropdownProfs();
     document.getElementById('pr-nom').value = '';
     document.getElementById('pr-tel').value = '';
     cerrarSheet('sh-prof');
