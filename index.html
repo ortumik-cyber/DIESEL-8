@@ -513,7 +513,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
       <div class="fg">
         <label>Duración</label>
         <div class="dur-opts">
-          <div class="dur-opt sel" data-dur="45">45 min <span style="font-size:10px;opacity:.7">(defecto)</span></div>
+          <div class="dur-opt sel" data-dur="45">45 min</div>
           <div class="dur-opt" data-dur="30">30 min</div>
         </div>
         <input type="hidden" id="m-duracion" value="45">
@@ -1139,9 +1139,11 @@ document.querySelectorAll('.dur-opt').forEach(function(opt){
 });
 
 function abrirNuevaPrac(hora){
-  document.getElementById('m-hora').innerHTML = FRANJAS.map(function(f){
-    return '<option value="'+f+'"'+(f===hora?' selected':'')+'>'+f+'</option>';
-  }).join('');
+  document.getElementById('m-hora').innerHTML =
+    '<option value="">-- Selecciona hora --</option>'
+    + FRANJAS.map(function(f){
+      return '<option value="'+f+'"'+(f===hora?' selected':'')+'>'+f+'</option>';
+    }).join('');
   // Reset duración a 45
   document.querySelectorAll('.dur-opt').forEach(function(o){ o.classList.remove('sel'); });
   document.querySelector('.dur-opt[data-dur="45"]').classList.add('sel');
@@ -2799,11 +2801,11 @@ function iniciarTimer21(){
   setInterval(function(){
     if(rol!=='admin') return;
     var now=new Date();
-    if(now.getHours()===21&&now.getMinutes()===0){
-      var key='diesel_bk21_'+dKey(now);
+    if(now.getHours()===9&&now.getMinutes()===0){
+      var key='diesel_bk9_'+dKey(now);
       if(!localStorage.getItem(key)){
         localStorage.setItem(key,'1');
-        toast('⏰ Backup automático 21:00 iniciando...');
+        toast('⏰ Backup automático 9:00 iniciando...');
         exportarExcelOD(true);
         setTimeout(function(){ exportarBackupExcel(); }, 20000);
         setTimeout(function(){ exportarBackupJSON(); }, 40000);
@@ -3410,107 +3412,65 @@ function toggleInstaladorSection(){
 
 // ── Pendientes de firma ────────────────────────────────────
 function cargarPendientesFirma(){
-  var el = document.getElementById('pend-firma-body');
+  var el=document.getElementById('pend-firma-body');
   if(!el) return;
-  el.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b">⏳ Cargando todas las prácticas pendientes...</p>';
-  if(typeof db === 'undefined' || typeof dKey === 'undefined'){
-    el.innerHTML = '<p style="color:#dc2626;padding:16px">Error: base de datos no disponible</p>';
-    return;
-  }
-  // Cargar TODAS las fechas registradas
+  el.innerHTML='<p style="text-align:center;padding:20px;color:#64748b">⏳ Cargando prácticas pendientes...</p>';
   db.collection('fechas_usadas').get().then(function(snapFechas){
-    var dias = snapFechas.docs.map(function(d){return d.id;});
-    dias.sort(function(a,b){return b.localeCompare(a);}); // más reciente primero
-  var pendientes = [];
-  var promesas = dias.map(function(fecha){
-    return db.collection('practicas_' + fecha).get()
-      .then(function(snap){
-        snap.docs.forEach(function(d){
-          var p = Object.assign({id: d.id, fecha: fecha}, d.data());
-          if(!p.firmada) pendientes.push(p);
+    var dias=snapFechas.docs.map(function(d){return d.id;});
+    dias.sort(function(a,b){return b.localeCompare(a);});
+    var promises=dias.map(function(fecha){
+      return db.collection('practicas_'+fecha).where('firmada','==',false).get()
+        .then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id,fecha:fecha},d.data());});});
+    });
+    Promise.all(promises).then(function(results){
+      var pendientes=[];
+      results.forEach(function(r){r.forEach(function(p){pendientes.push(p);});});
+      // Filtro: profesor solo ve sus prácticas
+      if(rol==='profesor'){
+        pendientes=pendientes.filter(function(p){
+          return p.profesorId===profesorId||p.profesorNombre===profesorNombre;
         });
-      }).catch(function(){ /* ignorar fechas sin datos */ });
-  });
-  Promise.all(promesas).then(function(){
-    pendientes.sort(function(a, b){
-      return (b.fecha + ' ' + (b.hora||'')).localeCompare(a.fecha + ' ' + (a.hora||''));
-    });
-    if(!pendientes.length){
-      el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:10px">Sin pendientes de firma</p></div>';
-      return;
-    }
-    // Agrupar por profesor
-    var porProf = {};
-    pendientes.forEach(function(p){
-      var prof = p.profesorNombre || 'Sin profesor';
-      if(!porProf[prof]) porProf[prof] = [];
-      porProf[prof].push(p);
-    });
-    var html2 = '';
-    if(!pendientes.length){
-      el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:10px">Sin pendientes de firma</p></div>';
-      return;
-    }
-    Object.keys(porProf).sort().forEach(function(profNom){
-      html2 += '<div style="background:#0f2d6b;color:#fff;padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;border-radius:6px">'
-        +'👨‍🏫 '+profNom+' ('+porProf[profNom].length+' pendiente'+(porProf[profNom].length>1?'s':'')+')</div>';
-      porProf[profNom].forEach(function(p, i){
-      var bg = i % 2 === 0 ? '#f8faff' : '#ffffff';
-      var vIcon = p.vehiculo === 'moto' ? '🏍️' : p.vehiculo === 'camion' ? '🚛' : '🚗';
-      var nom = (p.alumnoNombre || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      html2 += '<div style="background:' + bg + ';border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px">'
-        + '<div>'
-          + '<div style="font-size:13px;font-weight:700;color:#0f172a">' + (p.alumnoNombre||'—') + '</div>'
-          + '<div style="font-size:11px;color:#64748b;margin-top:3px">' + p.fecha + ' · ' + (p.hora||'') + ' · ' + vIcon + ' ' + (p.duracion||45) + 'min · ' + (p.profesorNombre||'') + '</div>'
-        + '</div>'
-        + '<button onclick="cerrarSheet(\'sh-pendientes-firma\');setTimeout(function(){abrirFirma(\'' + p.fecha + '\',\'' + p.id + '\',\'' + nom + '\');},150);" '
-          + 'style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">✍️ Firmar</button>'
-        + '</div>';
+      }
+      pendientes.sort(function(a,b){return b.fecha.localeCompare(a.fecha)||((a.hora||'').localeCompare(b.hora||''));});
+      if(!pendientes.length){
+        el.innerHTML='<div style="text-align:center;padding:40px"><div style="font-size:40px">✅</div><p style="color:#16a34a;font-weight:700;margin-top:10px">Sin prácticas pendientes de firma</p></div>';
+        return;
+      }
+      // Agrupar por fecha
+      var porFecha={};
+      pendientes.forEach(function(p){
+        if(!porFecha[p.fecha]) porFecha[p.fecha]=[];
+        porFecha[p.fecha].push(p);
       });
+      var vIcons={coche:'🚗',moto:'🏍️',camion:'🚛'};
+      var h2='';
+      Object.keys(porFecha).sort(function(a,b){return b.localeCompare(a);}).forEach(function(fecha){
+        var ps=porFecha[fecha];
+        var d=new Date(fecha+'T12:00:00');
+        var dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+        var meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+        var label=dias[d.getDay()]+' '+d.getDate()+' '+meses[d.getMonth()]+' '+d.getFullYear();
+        h2+='<div style="background:#0f2d6b;color:#fff;padding:8px 14px;font-size:12px;font-weight:700;margin:8px 0 4px;border-radius:6px">📅 '+label+' · '+ps.length+' pendiente'+(ps.length>1?'s':'')+'</div>';
+        ps.forEach(function(p){
+          var nom=p.alumnoNombre||'—';
+          var vi=vIcons[p.vehiculo]||'🚗';
+          var btn='';
+          if(rol==='profesor'){
+            btn='<button onclick="cerrarSheet('sh-pendientes-firma');setTimeout(function(){abrirFirma(''+p.fecha+'',''+p.id+'',''+nom+'');},200);" style="background:#1a56db;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">✍️ Firmar</button>';
+          }
+          h2+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px">'
+            +'<div><div style="font-size:13px;font-weight:700;color:#0f2d6b">'+p.hora+' · '+nom+'</div>'
+            +'<div style="font-size:11px;color:#64748b;margin-top:2px">'+vi+' '+p.duracion+'min · '+( p.profesorNombre||'—')+'</div></div>'
+            +btn+'</div>';
+        });
+      });
+      el.innerHTML=h2;
     });
-    el.innerHTML = html2;
-  });
   }).catch(function(e){
-    el.innerHTML = '<p style="color:#dc2626;padding:16px">Error: '+e.message+'</p>';
+    el.innerHTML='<p style="color:#dc2626;padding:16px">Error: '+e.message+'</p>';
   });
 }
 
-// ── Log de acceso (10s después, no bloquea nada) ───────────
-window.addEventListener('load', function(){
-  setTimeout(function(){
-    try{
-      if(typeof db === 'undefined') return;
-      var info = {
-        ts: new Date().toISOString(),
-        fecha: new Date().toLocaleString('es-ES'),
-        zona: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        pantalla: screen.width + 'x' + screen.height,
-        ua: navigator.userAgent.slice(0, 150)
-      };
-      db.collection('accesos').add(info).catch(function(){});
-      var wh = localStorage.getItem('diesel_webhook_acceso');
-      if(wh){
-        fetch(wh, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            mensaje: 'Acceso app: ' + info.fecha + ' | ' + info.zona + ' | ' + info.pantalla
-          })
-        }).catch(function(){});
-      }
-    }catch(e){}
-  }, 10000);
-});
-
-// ══════════════════════════════════════════════════════════════
-// SISTEMA DE LICENCIAS — verifica contra Firebase central
-// ══════════════════════════════════════════════════════════════
-var LIC_CFG = {
-  apiKey:'AIzaSyC8ZZmCNykV5yRRNlOkgNy1qFsHGDwv1OA',
-  authDomain:'licencias-autoescuelas.firebaseapp.com',
-  projectId:'licencias-autoescuelas'
-};
-var licDb = null;
 
 function mostrarBloqueoPantalla(titulo, msg, contacto){
   document.body.style.overflow='hidden';
