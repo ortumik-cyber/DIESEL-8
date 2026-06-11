@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-title" content="Diesel">
 <meta name="theme-color" content="#0f2d6b">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="shortcut icon" type="image/png" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <title>Autoescuela Diesel</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -509,7 +511,7 @@ html,body{height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-sy
     <div class="sheet-handle"></div>
     <div class="sheet-head"><h2>Nueva práctica</h2><button class="btn-close" data-close="sh-practica">✕</button></div>
     <div class="sheet-body">
-      <div class="fg"><label>Hora de inicio</label><select id="m-hora"></select></div>
+      <div class="fg"><label>Hora de inicio</label><input type="time" id="m-hora" style="width:100%;padding:10px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:16px;font-family:inherit"></div>
       <div class="fg">
         <label>Duración</label>
         <div class="dur-opts">
@@ -1139,11 +1141,8 @@ document.querySelectorAll('.dur-opt').forEach(function(opt){
 });
 
 function abrirNuevaPrac(hora){
-  document.getElementById('m-hora').innerHTML =
-    '<option value="">-- Selecciona hora --</option>'
-    + FRANJAS.map(function(f){
-      return '<option value="'+f+'"'+(f===hora?' selected':'')+'>'+f+'</option>';
-    }).join('');
+  var horaInput = document.getElementById('m-hora');
+  horaInput.value = hora || '';
   // Reset duración a 45
   document.querySelectorAll('.dur-opt').forEach(function(o){ o.classList.remove('sel'); });
   document.querySelector('.dur-opt[data-dur="45"]').classList.add('sel');
