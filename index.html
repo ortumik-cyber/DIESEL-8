@@ -3497,10 +3497,9 @@ function mostrarBloqueoPantalla(titulo, msg, contacto){
 async function verificarLicencia(){
   var clientId=localStorage.getItem('diesel_client_id')||'';
   if(!clientId){
-    mostrarBloqueoPantalla('App sin configurar',
-      'Esta instalación no tiene un ID de cliente asignado.',
-      'Contacta con tu instalador para activar la licencia.');
-    return false;
+    // Sin CLIENT_ID: permitir acceso para que el instalador pueda configurarlo
+    console.warn('Licencia: sin CLIENT_ID configurado. Modo instalador.');
+    return true;
   }
   try{
     if(!licDb){
