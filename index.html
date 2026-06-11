@@ -1081,7 +1081,12 @@ function renderCalendario(prs){
   // Filas
   var body = document.getElementById('cal-body');
   body.innerHTML = '';
-  FRANJAS.forEach(function(hora){
+  // Combinar FRANJAS con horas reales de prácticas (para horas libres)
+  var practHoras = prs.map(function(p){return p.hora;}).filter(Boolean);
+  var todasHoras = FRANJAS.slice();
+  practHoras.forEach(function(h){ if(todasHoras.indexOf(h)===-1) todasHoras.push(h); });
+  todasHoras.sort();
+  todasHoras.forEach(function(hora){
     var row = document.createElement('div'); row.className='cal-row';
     var chips = prs.filter(function(p){ return p.hora===hora; }).map(function(p){
       var c = p.profesorId && profColors[p.profesorId]
